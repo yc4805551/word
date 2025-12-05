@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { levels } from '../data/typing-levels';
 import { cn } from '../lib/utils';
 import { Timer, Trophy, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
-import { generateText } from '../lib/ai';
+import { generateText, generateQuiz, type Quiz } from '../lib/ai';
 
 export default function Week1() {
     const [currentLevelId, setCurrentLevelId] = useState(0);
     const [customText, setCustomText] = useState<string | null>(null); // Support for custom text
+    const [customQuizzes, setCustomQuizzes] = useState<Quiz[]>([]); // Support for dynamic quizzes
     const [inputVal, setInputVal] = useState('');
     const [isRunning, setIsRunning] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
@@ -27,6 +28,7 @@ export default function Week1() {
 
     const currentLevel = levels.find(l => l.id === currentLevelId) || levels[0];
     const targetText = customText || currentLevel.content; // Use custom text if available
+    const activeQuizzes = customText ? customQuizzes : currentLevel.quizzes;
 
     // Timer Logic
     useEffect(() => {
@@ -53,7 +55,17 @@ export default function Week1() {
             setStartTime(Date.now());
         }
 
-        if (val.length >= targetText.length) {
+        // Smarter completion check:
+        // 1. Length must be at least target length.
+        // 2. Hanzi count must be at least target Hanzi count (to prevent early finish on Pinyin/English).
+        // 3. OR if target has no Hanzi (English text), fallback to length check.
+        const inputHanziCount = (val.match(/[\u4e00-\u9fa5]/g) || []).length;
+        const targetHanziCount = (targetText.match(/[\u4e00-\u9fa5]/g) || []).length;
+
+        const isLengthReached = val.length >= targetText.length;
+        const isHanziReached = targetHanziCount > 0 ? inputHanziCount >= targetHanziCount : true;
+
+        if (isLengthReached && isHanziReached) {
             finishTest();
         }
     };
@@ -61,10 +73,7 @@ export default function Week1() {
     const finishTest = () => {
         setIsRunning(false);
         setIsFinished(true);
-        // Only show quiz if using original level content
-        if (!customText) {
-            setShowQuiz(true);
-        }
+        setShowQuiz(true);
     };
 
     const resetTest = () => {
@@ -81,6 +90,7 @@ export default function Week1() {
     const switchLevel = (id: number) => {
         setCurrentLevelId(id);
         setCustomText(null); // Clear custom text when switching levels
+        setCustomQuizzes([]);
         resetTest();
     };
 
@@ -90,28 +100,38 @@ export default function Week1() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             const text = event.target?.result as string;
             if (text) {
                 setCustomText(text);
                 resetTest();
+                // Generate quiz for imported text
+                try {
+                    const quizzes = await generateQuiz(text, aiProvider);
+                    setCustomQuizzes(quizzes);
+                } catch (error) {
+                    alert("生成失败，请检查网络或 API 配置。\n" + (error instanceof Error ? error.message : String(error)));
+                }
             }
         };
         reader.readAsText(file);
     };
 
-    // AI Generation Logic (Real)
     const handleAiGenerate = async () => {
         if (!aiTopic.trim()) return;
         setIsGenerating(true);
-
         try {
-            const generatedText = await generateText(aiTopic, aiProvider);
-            setCustomText(generatedText);
+            const text = await generateText(aiTopic, aiProvider);
+            setCustomText(text);
+
+            // Generate quiz for the generated text
+            const quizzes = await generateQuiz(text, aiProvider);
+            setCustomQuizzes(quizzes);
+
             setShowAiModal(false);
             resetTest();
         } catch (error) {
-            alert("生成失败，请检查网络或 API 配置。\n" + (error instanceof Error ? error.message : String(error)));
+            alert("生成失败: " + (error instanceof Error ? error.message : String(error)));
         } finally {
             setIsGenerating(false);
         }
@@ -263,7 +283,7 @@ export default function Week1() {
                 />
 
                 {/* Result Overlay */}
-                {showQuiz && !customText && (
+                {showQuiz && (
                     <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-20 rounded-lg flex flex-col p-6 overflow-y-auto animate-in fade-in zoom-in-95 duration-300">
                         <div className="flex items-center space-x-3 mb-6 border-b border-slate-100 pb-4">
                             <div className="w-10 h-10 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
@@ -275,43 +295,50 @@ export default function Week1() {
                             </div>
                         </div>
 
-                        <h3 className="font-bold text-slate-700 mb-4 flex items-center"><AlertCircle className="w-4 h-4 mr-2" /> 易混词拼音辨析</h3>
-
-                        <div className="space-y-4 mb-8">
-                            {currentLevel.quizzes.map((q, idx) => (
-                                <div key={idx} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                    <div className="mb-3 text-lg">
-                                        请选择 <span className="font-bold text-blue-700 mx-1 px-2 py-0.5 bg-blue-100 rounded">{q.word.replace(q.focus, `[${q.focus}]`)}</span> 的正确拼音：
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        {(['A', 'B'] as const).map((opt) => (
-                                            <button
-                                                key={opt}
-                                                disabled={quizResults[idx] !== undefined}
-                                                onClick={() => setQuizResults(prev => ({ ...prev, [idx]: opt === q.correct }))}
-                                                className={cn(
-                                                    "py-2 px-4 rounded border text-left transition-all font-mono text-sm",
-                                                    quizResults[idx] !== undefined
-                                                        ? opt === q.correct
-                                                            ? "bg-green-100 border-green-300 text-green-800"
-                                                            : quizResults[idx] === false && opt !== q.correct // If I picked wrong and this is the one I picked (wait, logic is simpler)
-                                                                ? "bg-red-50 border-red-200 text-red-400 opacity-50" // Not selected wrong one
-                                                                : "bg-slate-50 border-slate-200 text-slate-400 opacity-50"
-                                                        : "bg-white border-slate-300 hover:bg-blue-50 hover:border-blue-300"
-                                                )}
-                                            >
-                                                {opt}. {q.options[opt]}
-                                            </button>
-                                        ))}
-                                    </div>
-                                    {quizResults[idx] !== undefined && (
-                                        <div className={cn("mt-2 text-sm font-medium", quizResults[idx] ? "text-green-600" : "text-red-600")}>
-                                            {quizResults[idx] ? "✅ 回答正确" : "❌ 回答错误"}
+                        {activeQuizzes.length > 0 ? (
+                            <>
+                                <h3 className="font-bold text-slate-700 mb-4 flex items-center"><AlertCircle className="w-4 h-4 mr-2" /> 易混词拼音辨析</h3>
+                                <div className="space-y-4 mb-8">
+                                    {activeQuizzes.map((q, idx) => (
+                                        <div key={idx} className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                                            <div className="mb-3 text-lg">
+                                                请选择 <span className="font-bold text-blue-700 mx-1 px-2 py-0.5 bg-blue-100 rounded">{q.word.replace(q.focus, `[${q.focus}]`)}</span> 的正确拼音：
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {(['A', 'B'] as const).map((opt) => (
+                                                    <button
+                                                        key={opt}
+                                                        disabled={quizResults[idx] !== undefined}
+                                                        onClick={() => setQuizResults(prev => ({ ...prev, [idx]: opt === q.correct }))}
+                                                        className={cn(
+                                                            "py-2 px-4 rounded border text-left transition-all font-mono text-sm",
+                                                            quizResults[idx] !== undefined
+                                                                ? opt === q.correct
+                                                                    ? "bg-green-100 border-green-300 text-green-800"
+                                                                    : quizResults[idx] === false && opt !== q.correct
+                                                                        ? "bg-red-50 border-red-200 text-red-400 opacity-50"
+                                                                        : "bg-slate-50 border-slate-200 text-slate-400 opacity-50"
+                                                                : "bg-white border-slate-300 hover:bg-blue-50 hover:border-blue-300"
+                                                        )}
+                                                    >
+                                                        {opt}. {q.options[opt]}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            {quizResults[idx] !== undefined && (
+                                                <div className={cn("mt-2 text-sm font-medium", quizResults[idx] ? "text-green-600" : "text-red-600")}>
+                                                    {quizResults[idx] ? "✅ 回答正确" : "❌ 回答错误"}
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            </>
+                        ) : (
+                            <div className="mb-8 text-slate-500 text-center py-8 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                本文暂无拼音辨析题目
+                            </div>
+                        )}
 
                         <div className="flex space-x-4 mt-auto">
                             <button onClick={resetTest} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors shadow-lg shadow-blue-200">
@@ -321,29 +348,6 @@ export default function Week1() {
                                 下一关
                             </button>
                         </div>
-                    </div>
-                )}
-
-                {/* Custom Text Finished Overlay (No Quiz) */}
-                {showQuiz && customText && (
-                    <div className="absolute inset-0 bg-white/95 backdrop-blur-md z-20 rounded-lg flex flex-col items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-300">
-                        <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
-                            <CheckCircle className="w-10 h-10" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-800 mb-2">自定义训练完成</h2>
-                        <div className="flex space-x-8 mb-8">
-                            <div className="text-center">
-                                <div className="text-sm text-slate-500">速度</div>
-                                <div className="text-3xl font-bold text-blue-600">{wpm}</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-sm text-slate-500">准确率</div>
-                                <div className="text-3xl font-bold text-green-600">{accuracy}%</div>
-                            </div>
-                        </div>
-                        <button onClick={resetTest} className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-lg">
-                            再练一次
-                        </button>
                     </div>
                 )}
             </section>
@@ -430,3 +434,4 @@ export default function Week1() {
         </div>
     );
 }
+

@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&family=Noto+Sans+SC:wght@300;400;500&display=swap');
+
+@theme {
+  --font-sans: "Noto Sans SC", sans-serif;
+  --font-serif: "Noto Serif SC", serif;
+  --color-official-blue: #1e3a8a;
+  --color-official-red: #b91c1c;
+  --color-official-green: #15803d;
+}
+
+@layer base {
+  body {
+    @apply font-sans bg-slate-50 text-slate-800;
+  }
+}
+
+.official-font {
+  font-family: var(--font-serif);
+}
+
+/* Glass Panel Utility */
+.glass-panel {
+  @apply bg-white/95 backdrop-blur-sm border border-slate-200 shadow-sm;
+}

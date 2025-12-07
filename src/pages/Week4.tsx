@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { Loader2, Sparkles, FileText, List, ChevronRight } from 'lucide-react';
 import { generateOutline, type OutlineResult } from '../lib/ai';
@@ -13,6 +14,7 @@ const docTypes = [
 
 export default function Week4() {
     const { aiProvider, apiKeys } = useSettings();
+    const navigate = useNavigate();
     const [theme, setTheme] = useState('');
     const [type, setType] = useState('plan');
     const [loading, setLoading] = useState(false);
@@ -112,8 +114,23 @@ export default function Week4() {
                                 ))}
                             </div>
 
-                            <div className="bg-yellow-50 px-6 py-4 border-t border-yellow-100 text-sm text-yellow-800 italic">
-                                💡 逻辑点评：{result.comment}
+                            <div className="bg-yellow-50 px-6 py-4 border-t border-yellow-100 text-sm text-yellow-800 italic flex justify-between items-center">
+                                <span>💡 逻辑点评：{result.comment}</span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => navigator.clipboard.writeText(JSON.stringify(result, null, 2))}
+                                        className="text-xs text-yellow-700 hover:text-yellow-900 underline"
+                                    >
+                                        复制JSON
+                                    </button>
+                                    <button
+                                        onClick={() => navigate('/week6', { state: { outline: result } })}
+                                        className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded text-xs font-bold transition-colors flex items-center gap-1"
+                                    >
+                                        <FileText className="w-3 h-3" />
+                                        导出至写作画布
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ) : (

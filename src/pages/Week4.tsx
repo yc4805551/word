@@ -1,103 +1,130 @@
 import { useState } from 'react';
 import { cn } from '../lib/utils';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Sparkles, FileText, List, ChevronRight } from 'lucide-react';
+import { generateOutline, type OutlineResult } from '../lib/ai';
+import { useSettings } from '../context/SettingsContext';
+
+const docTypes = [
+    { id: 'plan', name: '工作方案', desc: '明确目标、步骤、保障措施' },
+    { id: 'report', name: '调研报告', desc: '现状、问题、对策' },
+    { id: 'summary', name: '年度总结', desc: '成绩、不足、展望' },
+    { id: 'speech', name: '领导讲话', desc: '站位高、部署实、号召力强' },
+];
 
 export default function Week4() {
-    const [origin, setOrigin] = useState('');
-    const [analysis, setAnalysis] = useState('');
-    const [suggestion, setSuggestion] = useState('');
+    const { aiProvider, apiKeys } = useSettings();
+    const [theme, setTheme] = useState('');
+    const [type, setType] = useState('plan');
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState<OutlineResult | null>(null);
 
-    const fullText = `${origin} ${analysis} ${suggestion}`.trim();
-    const charCount = fullText.length;
+    const handleGenerate = async () => {
+        if (!theme.trim()) return;
+        setLoading(true);
+        setResult(null);
 
-    // Simple checks
-    const hasOrigin = origin.length > 10;
-    const hasAnalysis = analysis.length > 20;
-    const hasSuggestion = suggestion.length > 10;
-    const isLengthOk = charCount >= 150 && charCount <= 300;
+        const typeName = docTypes.find(t => t.id === type)?.name || type;
+        const res = await generateOutline(theme, typeName, aiProvider, { apiKey: apiKeys[aiProvider] });
+        if (res) setResult(res);
+        setLoading(false);
+    };
 
     return (
-        <div className="max-w-4xl mx-auto space-y-8">
-            <div className="glass-panel p-6 rounded-lg border-l-4 border-blue-600">
-                <h2 className="text-xl font-bold text-blue-900 mb-2">“冒段”特训（Lead Paragraph）</h2>
-                <p className="text-slate-600">
-                    冒段是信息的“门面”。请按照“缘起+分析+建议”的结构，撰写一段高密度的专报导语。
-                    <br />
-                    <span className="text-xs text-slate-400">目标：200-250字，涵盖核心要素。</span>
-                </p>
+        <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in">
+            <div className="flex items-center space-x-3 text-slate-800">
+                <List className="w-8 h-8 text-blue-600" />
+                <div>
+                    <h2 className="text-2xl font-bold">公文提纲搭建 (Outline Builder)</h2>
+                    <p className="text-slate-500 text-sm">好的提纲是成功的一半。AI 助你快速搭建逻辑严密的一二三级标题。</p>
+                </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">1. 缘起（一句话概括事件）</label>
+            <div className="grid lg:grid-cols-3 gap-8">
+                {/* Input Panel */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <label className="block text-sm font-bold text-slate-700 mb-2">1. 选择文种</label>
+                        <div className="grid grid-cols-2 gap-2 mb-6">
+                            {docTypes.map((t) => (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setType(t.id)}
+                                    className={cn(
+                                        "px-3 py-2 text-sm rounded border text-left transition-all",
+                                        type === t.id
+                                            ? "border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-500"
+                                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                                    )}
+                                >
+                                    <div className="font-bold">{t.name}</div>
+                                    <div className="text-[10px] opacity-70 truncate">{t.desc}</div>
+                                </button>
+                            ))}
+                        </div>
+
+                        <label className="block text-sm font-bold text-slate-700 mb-2">2. 输入核心主题</label>
                         <textarea
-                            value={origin}
-                            onChange={e => setOrigin(e.target.value)}
-                            className="w-full p-3 rounded border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
-                            placeholder="例如：近日，工信部印发了《...》，旨在..."
+                            value={theme}
+                            onChange={(e) => setTheme(e.target.value)}
+                            className="w-full h-32 px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-100 outline-none resize-none mb-4 text-sm"
+                            placeholder="例如：关于推进数字经济高质量发展的工作方案..."
                         />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">2. 分析（两句话提炼核心风险/趋势）</label>
-                        <textarea
-                            value={analysis}
-                            onChange={e => setAnalysis(e.target.value)}
-                            className="w-full p-3 rounded border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-24"
-                            placeholder="例如：当前，我国XX产业面临...挑战，特别是...问题突出。"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">3. 建议（一句话提出关键对策）</label>
-                        <textarea
-                            value={suggestion}
-                            onChange={e => setSuggestion(e.target.value)}
-                            className="w-full p-3 rounded border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
-                            placeholder="例如：建议进一步强化...，加快构建...体系。"
-                        />
+
+                        <button
+                            onClick={handleGenerate}
+                            disabled={loading || !theme.trim()}
+                            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-bold shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+                        >
+                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                            {loading ? "AI 正在构建提纲..." : "立即生成提纲"}
+                        </button>
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="glass-panel p-6 rounded-lg bg-slate-50 min-h-[300px] flex flex-col">
-                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">预览</div>
-                        <div className="flex-1 text-slate-800 leading-relaxed indent-8 official-font text-lg">
-                            {fullText || <span className="text-slate-300 italic">此处将显示您的冒段预览...</span>}
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
-                            <div className={cn("font-mono font-bold", isLengthOk ? "text-green-600" : "text-orange-500")}>
-                                {charCount} 字
+                {/* Result Panel */}
+                <div className="lg:col-span-2">
+                    {result ? (
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-md overflow-hidden animate-in slide-in-from-right-4">
+                            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-blue-600" />
+                                    {result.title}
+                                </h3>
+                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">AI Generated</span>
                             </div>
-                            <div className="flex space-x-2 text-xs">
-                                <StatusBadge label="缘起" active={hasOrigin} />
-                                <StatusBadge label="分析" active={hasAnalysis} />
-                                <StatusBadge label="建议" active={hasSuggestion} />
-                            </div>
-                        </div>
-                    </div>
 
-                    <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-sm text-yellow-800">
-                        <div className="font-bold flex items-center mb-1"><AlertCircle className="w-4 h-4 mr-1" /> “三化”自查</div>
-                        <ul className="list-disc list-inside space-y-1 ml-1 text-xs">
-                            <li>是否犯了“学术化”（讲原理）？</li>
-                            <li>是否犯了“技术化”（堆参数）？</li>
-                            <li>是否犯了“新闻化”（讲故事）？</li>
-                        </ul>
-                    </div>
+                            <div className="p-8 space-y-6">
+                                {result.sections.map((section, idx) => (
+                                    <div key={idx} className="space-y-3">
+                                        <div className="flex items-start gap-2">
+                                            <span className="font-bold text-lg text-blue-800 official-font flex-shrink-0">{['一', '二', '三', '四', '五'][idx]}、</span>
+                                            <h4 className="font-bold text-lg text-slate-900 official-font">{section.lvl1}</h4>
+                                        </div>
+                                        <div className="pl-8 space-y-2">
+                                            {section.lvl2.map((sub, sIdx) => (
+                                                <div key={sIdx} className="flex items-start gap-2 group">
+                                                    <ChevronRight className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0 group-hover:text-blue-500 transition-colors" />
+                                                    <p className="text-slate-700 text-base">{sub}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-yellow-50 px-6 py-4 border-t border-yellow-100 text-sm text-yellow-800 italic">
+                                💡 逻辑点评：{result.comment}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-300 border-2 border-dashed border-slate-200 rounded-xl min-h-[400px]">
+                            <List className="w-16 h-16 mb-4 opacity-30" />
+                            <p className="text-lg">请在左侧设定主题</p>
+                            <p className="text-sm">AI 将为你构建一级标题、二级标题的完整骨架</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
-    );
-}
-
-function StatusBadge({ label, active }: { label: string; active: boolean }) {
-    return (
-        <span className={cn(
-            "px-2 py-1 rounded flex items-center",
-            active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
-        )}>
-            {active && <CheckCircle2 className="w-3 h-3 mr-1" />}
-            {label}
-        </span>
     );
 }

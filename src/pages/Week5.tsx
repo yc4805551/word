@@ -1,107 +1,103 @@
 import { useState } from 'react';
 import { cn } from '../lib/utils';
-import { ArrowRight } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function Week5() {
-    const [activeTab, setActiveTab] = useState<'perspective' | 'report'>('perspective');
+    const [origin, setOrigin] = useState('');
+    const [analysis, setAnalysis] = useState('');
+    const [suggestion, setSuggestion] = useState('');
+
+    const fullText = `${origin} ${analysis} ${suggestion}`.trim();
+    const charCount = fullText.length;
+
+    // Simple checks
+    const hasOrigin = origin.length > 10;
+    const hasAnalysis = analysis.length > 20;
+    const hasSuggestion = suggestion.length > 10;
+    const isLengthOk = charCount >= 150 && charCount <= 300;
 
     return (
-        <div className="space-y-6">
-            <div className="flex space-x-4 border-b border-slate-200 pb-2">
-                <button
-                    onClick={() => setActiveTab('perspective')}
-                    className={cn(
-                        "px-4 py-2 rounded-t-lg font-medium transition-colors",
-                        activeTab === 'perspective' ? "bg-purple-100 text-purple-800" : "text-slate-600 hover:bg-slate-50"
-                    )}
-                >
-                    宏观站位提升
-                </button>
-                <button
-                    onClick={() => setActiveTab('report')}
-                    className={cn(
-                        "px-4 py-2 rounded-t-lg font-medium transition-colors",
-                        activeTab === 'report' ? "bg-blue-100 text-blue-800" : "text-slate-600 hover:bg-slate-50"
-                    )}
-                >
-                    全篇模拟撰写
-                </button>
+        <div className="max-w-4xl mx-auto space-y-8">
+            <div className="glass-panel p-6 rounded-lg border-l-4 border-blue-600">
+                <h2 className="text-xl font-bold text-blue-900 mb-2">“冒段”特训（Lead Paragraph）</h2>
+                <p className="text-slate-600">
+                    冒段是信息的“门面”。请按照“缘起+分析+建议”的结构，撰写一段高密度的专报导语。
+                    <br />
+                    <span className="text-xs text-slate-400">目标：200-250字，涵盖核心要素。</span>
+                </p>
             </div>
 
-            {activeTab === 'perspective' ? <PerspectiveTraining /> : <ReportWriting />}
+            <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">1. 缘起（一句话概括事件）</label>
+                        <textarea
+                            value={origin}
+                            onChange={e => setOrigin(e.target.value)}
+                            className="w-full p-3 rounded border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
+                            placeholder="例如：近日，工信部印发了《...》，旨在..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">2. 分析（两句话提炼核心风险/趋势）</label>
+                        <textarea
+                            value={analysis}
+                            onChange={e => setAnalysis(e.target.value)}
+                            className="w-full p-3 rounded border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-24"
+                            placeholder="例如：当前，我国XX产业面临...挑战，特别是...问题突出。"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">3. 建议（一句话提出关键对策）</label>
+                        <textarea
+                            value={suggestion}
+                            onChange={e => setSuggestion(e.target.value)}
+                            className="w-full p-3 rounded border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm h-20"
+                            placeholder="例如：建议进一步强化...，加快构建...体系。"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="glass-panel p-6 rounded-lg bg-slate-50 min-h-[300px] flex flex-col">
+                        <div className="text-xs text-slate-400 uppercase tracking-wider mb-2">预览</div>
+                        <div className="flex-1 text-slate-800 leading-relaxed indent-8 official-font text-lg">
+                            {fullText || <span className="text-slate-300 italic">此处将显示您的冒段预览...</span>}
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
+                            <div className={cn("font-mono font-bold", isLengthOk ? "text-green-600" : "text-orange-500")}>
+                                {charCount} 字
+                            </div>
+                            <div className="flex space-x-2 text-xs">
+                                <StatusBadge label="缘起" active={hasOrigin} />
+                                <StatusBadge label="分析" active={hasAnalysis} />
+                                <StatusBadge label="建议" active={hasSuggestion} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-yellow-50 p-4 rounded border border-yellow-200 text-sm text-yellow-800">
+                        <div className="font-bold flex items-center mb-1"><AlertCircle className="w-4 h-4 mr-1" /> “三化”自查</div>
+                        <ul className="list-disc list-inside space-y-1 ml-1 text-xs">
+                            <li>是否犯了“学术化”（讲原理）？</li>
+                            <li>是否犯了“技术化”（堆参数）？</li>
+                            <li>是否犯了“新闻化”（讲故事）？</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
 
-function PerspectiveTraining() {
-    const cases = [
-        {
-            id: 1,
-            small: "某市某工厂的数据化改造",
-            big: "从某地实践看制造业高质量发展的经验与启示",
-            desc: "从单纯的个案描述，上升到行业发展的普遍规律和政策启示。"
-        },
-        {
-            id: 2,
-            small: "我省今年上半年出口额下降",
-            big: "当前外贸形势严峻复杂，需警惕产业链外迁风险",
-            desc: "透过数据表象，分析背后的深层次风险和国家安全维度的考量。"
-        }
-    ];
-
+function StatusBadge({ label, active }: { label: string; active: boolean }) {
     return (
-        <div className="space-y-6">
-            <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 text-purple-900 text-sm mb-6">
-                <strong>Stand Tall:</strong> 不要只盯着“一亩三分地”，要站在国家战略高度。
-            </div>
-
-            {cases.map((c) => (
-                <div key={c.id} className="glass-panel p-6 rounded-lg">
-                    <div className="flex flex-col md:flex-row items-center gap-4">
-                        <div className="flex-1 p-4 bg-slate-50 rounded border border-slate-200 text-center">
-                            <div className="text-xs text-slate-400 mb-1">小切口 / 就事论事</div>
-                            <div className="text-slate-600 font-medium">{c.small}</div>
-                        </div>
-                        <ArrowRight className="text-purple-400 w-6 h-6 rotate-90 md:rotate-0" />
-                        <div className="flex-1 p-4 bg-purple-50 rounded border border-purple-200 text-center shadow-sm">
-                            <div className="text-xs text-purple-400 mb-1">大局观 / 政治站位</div>
-                            <div className="text-purple-900 font-bold text-lg official-font">{c.big}</div>
-                        </div>
-                    </div>
-                    <div className="mt-4 text-sm text-slate-500 text-center">
-                        💡 {c.desc}
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function ReportWriting() {
-    const [text, setText] = useState('');
-    const wordCount = text.length;
-
-    return (
-        <div className="space-y-4 h-[calc(100vh-200px)] flex flex-col">
-            <div className="flex justify-between items-center">
-                <h3 className="font-bold text-slate-800">专报模拟撰写</h3>
-                <div className="text-sm text-slate-500">
-                    字数：<span className="font-mono font-bold text-blue-600">{wordCount}</span> / 1500
-                </div>
-            </div>
-
-            <textarea
-                value={text}
-                onChange={e => setText(e.target.value)}
-                className="flex-1 w-full p-6 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none text-lg leading-9 tracking-wide resize-none official-font bg-white text-slate-800 shadow-inner"
-                placeholder="请在此撰写关于“人工智能”或“工业互联网”的专报...
-        
-建议结构：
-1. 标题（有力）
-2. 冒段（缘起+分析+建议，200字）
-3. 正文（现状-问题-建议）"
-                spellCheck={false}
-            />
-        </div>
+        <span className={cn(
+            "px-2 py-1 rounded flex items-center",
+            active ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
+        )}>
+            {active && <CheckCircle2 className="w-3 h-3 mr-1" />}
+            {label}
+        </span>
     );
 }

@@ -1,53 +1,52 @@
-export interface TitleCase {
+export interface StructurePattern {
     id: number;
-    original: string;
-    options: { text: string; isCorrect: boolean; explanation: string }[];
+    name: string;
+    template: string;
+    description: string;
+    difficulty: number; // 1-5
 }
 
-export interface LogicCase {
-    id: number;
-    title: string;
-    segments: { id: string; content: string; type: 'status' | 'problem' | 'suggestion' }[];
-}
-
-export const titleCases: TitleCase[] = [
+export const structurePatterns: StructurePattern[] = [
     {
         id: 1,
-        original: "最近这半年很多企业因为不想管或者不会管，导致安全问题很严重。",
-        options: [
-            { text: "关于近期企业安全问题严重的报告", isCorrect: false, explanation: "过于平淡，未体现核心问题。" },
-            { text: "调研显示部分企业“不想管”“不会管”“管不了”问题突出", isCorrect: true, explanation: "使用了设问式/引用式风格，直击痛点，高度概括。" },
-            { text: "企业安全管理存在的问题及对策", isCorrect: false, explanation: "标准公文标题，但不够“一眼入魂”，缺乏针对性。" }
-        ]
+        name: "辩证统一式",
+        template: "既要...又要...",
+        description: "用于处理看似矛盾但实际上需要兼顾的两个方面，体现全面性和平衡感。",
+        difficulty: 2
     },
     {
         id: 2,
-        original: "我们去调研了某市的工厂，发现他们数据化改造做得很好。",
-        options: [
-            { text: "某市某工厂的数据化改造情况汇报", isCorrect: false, explanation: "切口太小，像流水账。" },
-            { text: "关于数字化转型的调研报告", isCorrect: false, explanation: "题目太大，内容支撑不足。" },
-            { text: "从某地实践看制造业高质量发展的经验与启示", isCorrect: true, explanation: "以小见大，站在宏观高度总结经验，符合专报要求。" }
-        ]
+        name: "层层递进式",
+        template: "...是...的基础，...是...的关键，...是...的保障",
+        description: "用于阐述三个要素之间的逻辑关系，层层深入，逻辑闭环。",
+        difficulty: 4
+    },
+    {
+        id: 3,
+        name: "排比强调式",
+        template: "坚持...不动摇，坚持...不松劲，坚持...不懈怠",
+        description: "通过重复的句式增强气势，表达坚定的决心和立场。",
+        difficulty: 3
+    },
+    {
+        id: 4,
+        name: "目标导向式",
+        template: "以...为中心，以...为抓手，以...为目标",
+        description: "明确工作的出发点、着力点和落脚点，非常实用的工作部署句式。",
+        difficulty: 3
+    },
+    {
+        id: 5,
+        name: "正反对比式",
+        template: "不能...而要...；决不能...更不能...",
+        description: "通过否定错误做法、肯定正确做法，划清底线，指明方向。",
+        difficulty: 3
     }
 ];
 
-export const logicCases: LogicCase[] = [
-    {
-        id: 1,
-        title: "关于XX产业发展的分析",
-        segments: [
-            { id: "A", content: "我国XX产业具备一定优势，产业规模稳居世界前列，技术创新能力显著增强...", type: "status" },
-            { id: "B", content: "但也要看到，关键核心技术仍受制于人，产业链供应链存在断链风险...", type: "problem" },
-            { id: "C", content: "建议加大研发投入，强化企业主体地位，完善人才培养机制...", type: "suggestion" }
-        ]
-    },
-    {
-        id: 2,
-        title: "关于中小企业数字化转型的建议",
-        segments: [
-            { id: "A", content: "近年来，中小企业数字化转型步伐加快，上云用数赋智成效明显...", type: "status" },
-            { id: "B", content: "当前面临“不敢转”“不会转”“转不起”的共性难题，资金人才缺口大...", type: "problem" },
-            { id: "C", content: "应设立专项引导基金，搭建公共服务平台，开展数字化人才培训...", type: "suggestion" }
-        ]
-    }
+export const logicModes = [
+    { id: 'dialectical', name: '辩证思维 (Dialectical)', description: '既看A面也看B面，体现全面性' },
+    { id: 'progressive', name: '递进思维 (Progressive)', description: '由表及里，层层深入' },
+    { id: 'pragmatic', name: '务实思维 (Pragmatic)', description: '聚焦措施，强调落地' },
+    { id: 'significance', name: '高度升维 (Elevation)', description: '拔高站位，从大局出发' }
 ];

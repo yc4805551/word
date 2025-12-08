@@ -3,6 +3,7 @@ import { levels } from '../data/typing-levels';
 import { cn } from '../lib/utils';
 import { Timer, Trophy, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
 import { generateText, generateQuiz, type Quiz } from '../lib/ai';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Week1() {
     const [currentLevelId, setCurrentLevelId] = useState(0);
@@ -20,7 +21,9 @@ export default function Week1() {
     const [showAiModal, setShowAiModal] = useState(false);
     const [aiTopic, setAiTopic] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [aiProvider, setAiProvider] = useState<'openai' | 'deepseek' | 'gemini'>('openai');
+
+    // Global Settings
+    const { aiProvider, apiKeys } = useSettings();
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +110,7 @@ export default function Week1() {
                 resetTest();
                 // Generate quiz for imported text
                 try {
-                    const quizzes = await generateQuiz(text, aiProvider);
+                    const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] });
                     setCustomQuizzes(quizzes);
                 } catch (error) {
                     alert("生成失败，请检查网络或 API 配置。\n" + (error instanceof Error ? error.message : String(error)));
@@ -121,11 +124,11 @@ export default function Week1() {
         if (!aiTopic.trim()) return;
         setIsGenerating(true);
         try {
-            const text = await generateText(aiTopic, aiProvider);
+            const text = await generateText(aiTopic, aiProvider, { apiKey: apiKeys[aiProvider] });
             setCustomText(text);
 
             // Generate quiz for the generated text
-            const quizzes = await generateQuiz(text, aiProvider);
+            const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] });
             setCustomQuizzes(quizzes);
 
             setShowAiModal(false);
@@ -364,48 +367,11 @@ export default function Week1() {
                             value={aiTopic}
                             onChange={(e) => setAiTopic(e.target.value)}
                             placeholder="例如：乡村振兴、数字经济、安全生产..."
-                            className="w-full p-3 border border-slate-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="w-full p-3 border border-slate-300 rounded-lg mb-8 focus:ring-2 focus:ring-blue-500 outline-none"
                             autoFocus
                         />
 
-                        <div className="mb-4">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 block">选择模型</label>
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={() => setAiProvider('openai')}
-                                    className={cn(
-                                        "flex-1 py-2 px-3 rounded text-sm border transition-all",
-                                        aiProvider === 'openai'
-                                            ? "bg-blue-50 border-blue-300 text-blue-700 font-medium"
-                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                                    )}
-                                >
-                                    OpenAI (DMX)
-                                </button>
-                                <button
-                                    onClick={() => setAiProvider('deepseek')}
-                                    className={cn(
-                                        "flex-1 py-2 px-3 rounded text-sm border transition-all",
-                                        aiProvider === 'deepseek'
-                                            ? "bg-blue-50 border-blue-300 text-blue-700 font-medium"
-                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                                    )}
-                                >
-                                    DeepSeek
-                                </button>
-                                <button
-                                    onClick={() => setAiProvider('gemini')}
-                                    className={cn(
-                                        "flex-1 py-2 px-3 rounded text-sm border transition-all",
-                                        aiProvider === 'gemini'
-                                            ? "bg-blue-50 border-blue-300 text-blue-700 font-medium"
-                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                                    )}
-                                >
-                                    Gemini
-                                </button>
-                            </div>
-                        </div>
+                        {/* Model selector removed as per user request for centralized configuration */}
 
                         <div className="flex justify-end space-x-3">
                             <button

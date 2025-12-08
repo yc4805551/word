@@ -287,12 +287,12 @@ export async function analyzeAndGeneratePractice(article: string, focusWords: st
 用户提供了一段公文和他们想要学习的“重点词汇”。
 请执行以下任务并返回JSON：
 1. 词汇解析与举一反三（释义、例句、近义词）。
-2. 生成填空练习。
+2. 生成填空练习。文章中的填空位置请严格使用此格式：___[序号]___。注意：不要在横线中包含提示词，提示词请放在blanks数组中。例如：___[1]___。
 返回格式（严格JSON）：
 {
     "article": "...", 
     "keywords": [{ "word": "...", "meaning": "...", "analysis": "...", "example": "...", "expansion": ["..."] }],
-    "practice": { "text": "...", "blanks": [{ "id": 1, "answer": "...", "hint": "..." }] }
+    "practice": { "text": "文章内容...___[1]___...", "blanks": [{ "id": 1, "answer": "...", "hint": "（动词/名词/成语）" }] }
 }`
         },
         { role: "user", content: `文章内容：${article}\n\n用户关注的词：${JSON.stringify(focusWords)}` }
@@ -387,6 +387,39 @@ export async function generateScenarioPractice(word: string, provider: 'openai' 
 返回JSON: { "scenario": "...", "sentence": "...", "target_possibilities": [...], "hint": "...", "explanation": "..." }`
         },
         { role: "user", content: `请针对口头禅“${word}”生成一个训练场景。` }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
+        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
+    } catch (e) { return null; }
+}
+
+export async function generateUsagePractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<ScenarioPractice | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!config.apiKey) return null;
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个公文写作教练。
+请针对高级词汇“${word}”设计一个应用场景训练题。
+1. 设定一个需要用到该词的公务场景（Scenario）。
+2. 写一个句子（Sentence），其中该词的位置用 ____ 代替。
+3. 提供提示（Hint），例如“填入一个表示XXX的二字词”。
+4. 目标答案（target_possibilities）即为该词（也可以包含同义且恰当的词）。
+5. 解析（Explanation）解释为什么这里用这个词最恰当。
+
+返回JSON（Strict JSON）：
+{
+  "scenario": "...",
+  "sentence": "...",
+  "target_possibilities": ["..."],
+  "hint": "...",
+  "explanation": "..."
+}`
+        },
+        { role: "user", content: `请针对词汇“${word}”生成一个正面应用训练场景。` }
     ];
 
     try {

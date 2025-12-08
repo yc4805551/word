@@ -37,7 +37,19 @@ export default function CoWritingCanvas({ initialText = '', onBack }: CoWritingC
         setError(null);
 
         const userMsg = input.trim() || "请帮我分析左侧的文本。";
+
+        // Inject System Prompt for format enforcement
+        const systemPrompt: ChatMessage = {
+            role: 'system',
+            content: `你是一个公文写作交互助手。
+请根据用户的指令修改或润色用户的草稿。
+【重要】如果你提供了修改后的完整草稿，请务必将其包裹在 <FINAL_DRAFT> 和 </FINAL_DRAFT> 标签中。
+例如：<FINAL_DRAFT>修改后的全文内容...</FINAL_DRAFT>
+如果不涉及全文修改（如仅解释或回答问题），则不需要使用该标签。`
+        };
+
         const newHistory: ChatMessage[] = [
+            systemPrompt,
             ...messages,
             { role: 'user', content: `【当前草稿内容】：\n${draft}\n\n【用户指令】：${userMsg}` }
         ];
@@ -49,18 +61,8 @@ export default function CoWritingCanvas({ initialText = '', onBack }: CoWritingC
         const result = await interactivePolish(newHistory, aiProvider, { apiKey: apiKeys[aiProvider] });
 
         if (result.success && result.data) {
-            let aiContent = result.data!;
-            const draftMatch = aiContent.match(/<FINAL_DRAFT>([\s\S]*?)<\/FINAL_DRAFT>/);
-
-            if (draftMatch) {
-                const newDraft = draftMatch[1].trim();
-                setDraft(newDraft);
-                // Optional: Remove tags from chat display if desired, or keep them to show what happened
-                // For now, let's keep the raw message but maybe stripped of tags for cleaner chat, 
-                // OR just notify the user.
-                aiContent = aiContent.replace(/<FINAL_DRAFT>[\s\S]*?<\/FINAL_DRAFT>/, "（已自动同步到右侧画布）\n\n" + newDraft);
-            }
-
+            const aiContent = result.data!;
+            // Do NOT auto-update draft. Just add message.
             setMessages(prev => [...prev, { role: 'assistant', content: aiContent }]);
         } else {
             setError(result.error || "未知错误，请检查网络或API Key配置。");
@@ -79,23 +81,47 @@ export default function CoWritingCanvas({ initialText = '', onBack }: CoWritingC
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-                    {messages.map((msg, idx) => (
-                        <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
-                                {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                            </div>
-                            <div className={`max-w-[85%] rounded-lg p-3 text-sm leading-relaxed shadow-sm overflow-x-auto ${msg.role === 'user'
-                                ? 'bg-blue-600 text-white rounded-tr-none'
-                                : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none prose prose-sm max-w-none'
-                                }`}>
-                                {msg.role === 'user' ? (
-                                    msg.content
-                                ) : (
-                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    {messages.map((msg, idx) => {
+                        // Check if message contains a draft proposal
+                        const hasDraft = msg.content.includes('<FINAL_DRAFT>');
+                        // Clean content for display (remove the tag)
+                        const displayContent = msg.content.replace(/<FINAL_DRAFT>[\s\S]*?<\/FINAL_DRAFT>/g, '（已生成建议草稿，请点击下方按钮同步）');
+
+                        // Extract the draft content for the button action
+                        const draftMatch = msg.content.match(/<FINAL_DRAFT>([\s\S]*?)<\/FINAL_DRAFT>/);
+                        const proposedDraft = draftMatch ? draftMatch[1].trim() : '';
+
+                        return (
+                            <div key={idx} className={`flex flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                <div className={`flex gap-3 max-w-[90%] ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                        {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                                    </div>
+                                    <div className={`rounded-lg p-3 text-sm leading-relaxed shadow-sm overflow-x-auto ${msg.role === 'user'
+                                        ? 'bg-blue-600 text-white rounded-tr-none'
+                                        : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none prose prose-sm max-w-none'
+                                        }`}>
+                                        {msg.role === 'user' ? (
+                                            msg.content
+                                        ) : (
+                                            <ReactMarkdown>{hasDraft ? displayContent : msg.content}</ReactMarkdown>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Sync Button for Assistant Messages with Draft */}
+                                {msg.role === 'assistant' && hasDraft && (
+                                    <button
+                                        onClick={() => setDraft(proposedDraft)}
+                                        className="ml-11 flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-xs font-bold shadow-sm"
+                                    >
+                                        <PenLine className="w-3 h-3" />
+                                        确认输出到画布
+                                    </button>
                                 )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                     {loading && (
                         <div className="flex gap-3">
                             <div className="w-8 h-8 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center">
@@ -132,7 +158,7 @@ export default function CoWritingCanvas({ initialText = '', onBack }: CoWritingC
                                     handleSend();
                                 }
                             }}
-                            placeholder="告诉AI如何修改...（确认后自动同步）"
+                            placeholder="告诉AI如何修改...（AI将生成建议，需手动确认同步）"
                             className="w-full pl-4 pr-12 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-purple-100 outline-none text-sm resize-none h-12 max-h-32"
                             rows={1}
                         />

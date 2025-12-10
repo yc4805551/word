@@ -5,7 +5,7 @@ export default function Home() {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div className="text-center space-y-4 py-10">
-                <h2 className="text-3xl font-bold text-blue-900 official-font">欢迎进入公文写作特训营</h2>
+                <h2 className="text-3xl font-bold text-blue-900 official-font">欢迎进入</h2>
                 <p className="text-lg text-slate-600 max-w-2xl mx-auto">
                     本系统旨在将您打造为一名既具速度又有深度的公文高手。
                     请按照周次循序渐进，完成从基础输入到宏观篇章的全面进阶。

@@ -5,7 +5,7 @@ on:
     branches:
       - main
 
-      id-token: write
+
 
 # Allow only one concurrent deployment
 concurrency:

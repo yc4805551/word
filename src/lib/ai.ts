@@ -255,7 +255,50 @@ export async function generateQuiz(text: string, provider: 'openai' | 'deepseek'
         console.error("Quiz Error:", e);
         return [];
     }
+
 }
+
+export async function generatePinyinQuiz(provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<Quiz[]> {
+    const config = getAIConfig(provider, overrides);
+    if (!config.apiKey) return [];
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个汉语拼音专家。请生成一组（8-10个）针对“前后鼻音”即(in/ing, en/eng)的易混词辨析题。
+            请严格遵守以下规则：
+            1. 词语必须是公文写作中常见的双字或四字词语。
+            2. 重点考察的字必须包含 in, ing, en, eng 韵母。
+            3. 题目格式必须包含：词语、易混字、正确选项、干扰选项（拼音错误或声调错误）。
+            
+            请返回一个JSON数组，格式如下：
+            [
+                {
+                    "word": "词语（如：深化改革）",
+                    "focus": "易混字（如：深）",
+                    "options": { "A": "shēn (前)", "B": "shēng (后)" },
+                    "correct": "A",
+                    "note": "深化，Meaning 'deepen', uses front nasal sound."
+                }
+            ]`
+        },
+        { role: "user", content: `请生成一组前后鼻音辨析题。` }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider) || "[]";
+        // Cleanup and parse
+        const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(clean);
+        if (Array.isArray(parsed)) return parsed;
+        if (parsed.quizzes && Array.isArray(parsed.quizzes)) return parsed.quizzes;
+        return [];
+    } catch (e) {
+        console.error("Pinyin Quiz Error:", e);
+        return [];
+    }
+}
+
 
 export interface SmartLesson {
     article: string;

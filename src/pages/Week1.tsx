@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { levels } from '../data/typing-levels';
 import { cn } from '../lib/utils';
 import { Timer, Trophy, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
-import { generateText, generateQuiz, type Quiz } from '../lib/ai';
+import { generateText, generateQuiz, generatePinyinQuiz, type Quiz } from '../lib/ai';
 import { useSettings } from '../context/SettingsContext';
 
 export default function Week1() {
@@ -140,6 +140,25 @@ export default function Week1() {
         }
     };
 
+    const handlePinyinTraining = async () => {
+        setIsGenerating(true);
+        try {
+            const quizzes = await generatePinyinQuiz(aiProvider, { apiKey: apiKeys[aiProvider] });
+            if (quizzes.length === 0) {
+                alert("生成失败，请重试");
+                return;
+            }
+            setCustomText(">>> 专项训练模式 <<<"); // Placeholder to switch view
+            setCustomQuizzes(quizzes);
+            setShowQuiz(true); // Directly show quiz results overlay which contains the quiz UI
+            setQuizResults({});
+        } catch (error) {
+            alert("生成失败: " + (error instanceof Error ? error.message : String(error)));
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     // Stats
     // Count Hanzi (Chinese characters) specifically for "Hanzi Count"
     const hanziCount = (inputVal.match(/[\u4e00-\u9fa5]/g) || []).length;
@@ -220,6 +239,14 @@ export default function Week1() {
                             className="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:shadow-md transition-all text-sm"
                         >
                             <span>✨ AI 生成范文</span>
+                        </button>
+
+                        <button
+                            onClick={handlePinyinTraining}
+                            disabled={isGenerating}
+                            className="w-full flex items-center justify-center space-x-2 px-4 py-2 rounded bg-gradient-to-r from-teal-500 to-emerald-600 text-white hover:shadow-md transition-all text-sm disabled:opacity-50"
+                        >
+                            <span>🎯 拼音弱点攻克 (in/ing/en/eng)</span>
                         </button>
                     </div>
                 </div>

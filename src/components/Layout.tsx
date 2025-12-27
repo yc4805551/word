@@ -128,7 +128,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </main>
             </div>
 
-            <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            {isSettingsOpen && <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />}
         </div>
     );
 }

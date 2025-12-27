@@ -43,14 +43,100 @@ export function getAIConfig(provider: 'openai' | 'deepseek' | 'gemini' = 'openai
     return { apiKey, endpoint, model };
 }
 
-// ... types and previous imports
+function getErrorMessage(err: unknown) {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    try { return JSON.stringify(err); } catch { return '未知错误'; }
+}
+
+function normalizeApiKey(key: unknown) {
+    return typeof key === 'string' ? key.trim() : '';
+}
+
+function buildHttpError(status: number, statusText: string, rawBody: string) {
+    const clean = rawBody?.trim?.() ? rawBody.trim() : '';
+    let message = `${status} ${statusText}`.trim();
+
+    if (clean) {
+        try {
+            const obj = JSON.parse(clean);
+            const apiMsg =
+                obj?.error?.message ??
+                obj?.message ??
+                obj?.error ??
+                obj?.detail ??
+                obj?.msg;
+            if (typeof apiMsg === 'string' && apiMsg.trim()) {
+                message = `${message}: ${apiMsg.trim()}`;
+            } else {
+                message = `${message}: ${clean.slice(0, 400)}`;
+            }
+        } catch {
+            message = `${message}: ${clean.slice(0, 400)}`;
+        }
+    }
+
+    return new Error(message);
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | undefined, timeoutMs: number) {
+    const controller = new AbortController();
+    const parentSignal = init?.signal;
+
+    if (parentSignal?.aborted) controller.abort();
+    const onAbort = () => controller.abort();
+    parentSignal?.addEventListener('abort', onAbort, { once: true });
+
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+        window.clearTimeout(timer);
+        parentSignal?.removeEventListener('abort', onAbort);
+    }
+}
+
+function extractJsonCandidate(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return null;
+
+    const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenceMatch?.[1]) return fenceMatch[1].trim();
+
+    const firstBrace = trimmed.search(/[{[]/);
+    if (firstBrace === -1) return null;
+    const candidate = trimmed.slice(firstBrace).trim();
+    return candidate;
+}
+
+function safeJsonParse<T = unknown>(text: string): T | null {
+    const candidate = extractJsonCandidate(text);
+    if (!candidate) return null;
+    try {
+        return JSON.parse(candidate) as T;
+    } catch {
+        return null;
+    }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isSmartLessonPayload(value: unknown): value is Omit<SmartLesson, 'article'> {
+    if (!isObject(value)) return false;
+    if (!Array.isArray(value.keywords)) return false;
+    if (!isObject(value.practice)) return false;
+    if (typeof value.practice.text !== 'string') return false;
+    if (!Array.isArray(value.practice.blanks)) return false;
+    return true;
+}
 
 // Helper to unify API calls and handle Gemini Native vs OpenAI Compat
 async function callChatCompletion(
     messages: ChatMessage[],
     config: AIConfig,
-    schema?: any,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai'
+    schema?: unknown
 ): Promise<string | null> {
 
     // If user explicitly set .../openai/ endpoint, we TRY to use OpenAI compat, but if it fails with CORS (which we can't detect easily beforehand), 
@@ -62,97 +148,78 @@ async function callChatCompletion(
 
     if (isGoogleHost) {
         // --- GEMINI NATIVE API MODE ---
-        try {
-            // Construct Native URL
-            // Default: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=API_KEY
-            // We need to parse the model and base, but to be safe, let's just use the standard template if we detect Google host.
-            const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+        // Construct Native URL
+        // Default: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=API_KEY
+        const nativeUrl = `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
 
-            // Transform Messages to Gemini Content Format
-            // OpenAI: [{role: system, content: ...}, {role: user, content: ...}]
-            // Gemini: contents: [{role: user|model, parts: [{text: ...}]}], system_instruction: { parts: [{text: ...}] }
+        const systemMsg = messages.find(m => m.role === 'system');
+        const conversation = messages.filter(m => m.role !== 'system');
 
-            const systemMsg = messages.find(m => m.role === 'system');
-            const conversation = messages.filter(m => m.role !== 'system');
+        const geminiContents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = conversation.map(m => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.content }]
+        }));
 
-            const geminiContents = conversation.map(m => ({
-                role: m.role === 'user' ? 'user' : 'model',
-                parts: [{ text: m.content }]
-            }));
+        const payload: {
+            contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
+            generationConfig: { temperature: number; response_mime_type?: string };
+            system_instruction?: { parts: Array<{ text: string }> };
+        } = {
+            contents: geminiContents,
+            generationConfig: { temperature: 0.7 }
+        };
 
-            const payload: any = {
-                contents: geminiContents,
-                generationConfig: {
-                    temperature: 0.7,
-                }
-            };
-
-            if (systemMsg) {
-                payload.system_instruction = {
-                    parts: [{ text: systemMsg.content }]
-                };
-            }
-
-            if (schema) {
-                payload.generationConfig.response_mime_type = "application/json";
-                // Gemini native doesn't support 'json_object' mode exactly like OpenAI, relies on mime_type or schema
-            }
-
-            const response = await fetch(nativeUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                console.error("Gemini Native Error:", errText);
-                throw new Error(`Gemini Error ${response.status}: ${errText}`);
-            }
-
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            return text || null;
-
-        } catch (e) {
-            console.error("Gemini Native Call Failed:", e);
-            throw e;
+        if (systemMsg) {
+            payload.system_instruction = { parts: [{ text: systemMsg.content }] };
         }
+
+        if (schema) {
+            payload.generationConfig.response_mime_type = "application/json";
+        }
+
+        const response = await fetchWithTimeout(nativeUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }, 60_000);
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw buildHttpError(response.status, response.statusText, errText);
+        }
+
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return text || null;
 
     } else {
         // --- OPENAI COMPAT MODE (DeepSeek, OpenAI, or Custom Proxy) ---
-        try {
-            const payload: any = {
-                model: config.model,
-                messages: messages,
-                temperature: 0.7,
-            };
+        const payload: Record<string, unknown> = {
+            model: config.model,
+            messages: messages,
+            temperature: 0.7,
+        };
 
-            if (schema) {
-                payload.response_format = schema;
-            }
-
-            const response = await fetch(config.endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.apiKey}`,
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-                console.error(`API Error (${provider}):`, errText);
-                throw new Error(`API Error ${response.status}: ${errText}`);
-            }
-
-            const data = await response.json();
-            return data.choices?.[0]?.message?.content || null;
-        } catch (e) {
-            console.error(`${provider} Call Failed:`, e);
-            throw e;
+        if (schema) {
+            payload.response_format = schema;
         }
+
+        const response = await fetchWithTimeout(config.endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify(payload),
+        }, 60_000);
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw buildHttpError(response.status, response.statusText, errText);
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || null;
     }
 }
 
@@ -175,20 +242,22 @@ export async function interactivePolish(
     overrides?: { apiKey?: string }
 ): Promise<AIResponse> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return { success: false, error: `Missing API Key for ${provider}` };
+    if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
 
     try {
-        const text = await callChatCompletion(history, config, undefined, provider);
+        const text = await callChatCompletion(history, config, undefined);
         if (!text) return { success: false, error: "Empty response" };
         return { success: true, data: text };
     } catch (e) {
-        return { success: false, error: e instanceof Error ? e.message : "Network Error" };
+        const msg = getErrorMessage(e);
+        if (msg.includes('AbortError')) return { success: false, error: '请求超时，请稍后重试或切换模型。' };
+        return { success: false, error: msg || "网络错误" };
     }
 }
 
 export async function generateText(prompt: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<string> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) throw new Error("Missing API Key");
+    if (!normalizeApiKey(config.apiKey)) throw new Error(`未配置 ${provider} 的 API Key，请在“系统设置”中填写。`);
 
     try {
         const messages: ChatMessage[] = [
@@ -196,7 +265,7 @@ export async function generateText(prompt: string, provider: 'openai' | 'deepsee
             { role: "user", content: `请以“${prompt}”为主题，生成一篇公文范文。` }
         ];
 
-        let content = await callChatCompletion(messages, config, undefined, provider);
+        let content = await callChatCompletion(messages, config, undefined);
         content = content || "生成失败";
 
         // Post-processing
@@ -204,8 +273,9 @@ export async function generateText(prompt: string, provider: 'openai' | 'deepsee
         const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         return lines.join('\n');
     } catch (error) {
-        console.error("AI Generation Error:", error);
-        throw error;
+        const msg = getErrorMessage(error);
+        if (msg.includes('AbortError')) throw new Error('请求超时，请稍后重试或切换模型。');
+        throw new Error(msg);
     }
 }
 
@@ -219,7 +289,7 @@ export interface Quiz {
 
 export async function generateQuiz(text: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<Quiz[]> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return [];
+    if (!normalizeApiKey(config.apiKey)) return [];
 
     const messages: ChatMessage[] = [
         {
@@ -244,15 +314,14 @@ export async function generateQuiz(text: string, provider: 'openai' | 'deepseek'
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider) || "[]";
-        // Cleanup and parse
-        const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(clean);
+        const content = await callChatCompletion(messages, config, undefined) || "[]";
+        const parsed = safeJsonParse(content);
         if (Array.isArray(parsed)) return parsed;
-        if (parsed.quizzes && Array.isArray(parsed.quizzes)) return parsed.quizzes;
+        if (typeof parsed === 'object' && parsed !== null && 'quizzes' in parsed && Array.isArray((parsed as { quizzes?: unknown }).quizzes)) {
+            return (parsed as { quizzes: Quiz[] }).quizzes;
+        }
         return [];
-    } catch (e) {
-        console.error("Quiz Error:", e);
+    } catch {
         return [];
     }
 
@@ -260,7 +329,7 @@ export async function generateQuiz(text: string, provider: 'openai' | 'deepseek'
 
 export async function generatePinyinQuiz(provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<Quiz[]> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return [];
+    if (!normalizeApiKey(config.apiKey)) return [];
 
     const messages: ChatMessage[] = [
         {
@@ -286,15 +355,14 @@ export async function generatePinyinQuiz(provider: 'openai' | 'deepseek' | 'gemi
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider) || "[]";
-        // Cleanup and parse
-        const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
-        const parsed = JSON.parse(clean);
+        const content = await callChatCompletion(messages, config, undefined) || "[]";
+        const parsed = safeJsonParse(content);
         if (Array.isArray(parsed)) return parsed;
-        if (parsed.quizzes && Array.isArray(parsed.quizzes)) return parsed.quizzes;
+        if (typeof parsed === 'object' && parsed !== null && 'quizzes' in parsed && Array.isArray((parsed as { quizzes?: unknown }).quizzes)) {
+            return (parsed as { quizzes: Quiz[] }).quizzes;
+        }
         return [];
-    } catch (e) {
-        console.error("Pinyin Quiz Error:", e);
+    } catch {
         return [];
     }
 }
@@ -321,7 +389,7 @@ export interface SmartLesson {
 
 export async function analyzeAndGeneratePractice(article: string, focusWords: string[], provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<SmartLesson | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -342,13 +410,12 @@ export async function analyzeAndGeneratePractice(article: string, focusWords: st
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
         if (!content) return null;
-        const clean = content.replace(/```json/g, '').replace(/```/g, '').trim();
-        const json = JSON.parse(clean);
+        const json = safeJsonParse(content);
+        if (!isSmartLessonPayload(json)) return null;
         return { ...json, article };
-    } catch (e) {
-        console.error("Analysis Error:", e);
+    } catch {
         return null;
     }
 }
@@ -364,7 +431,7 @@ export interface ContextualPractice {
 
 export async function generateContextualPractice(colloquial: string, official: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai'): Promise<ContextualPractice | null> {
     const config = getAIConfig(provider);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -376,9 +443,9 @@ export async function generateContextualPractice(colloquial: string, official: s
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<ContextualPractice>(content) : null;
+    } catch { return null; }
 }
 
 export interface PolishedText {
@@ -394,7 +461,7 @@ export interface PolishedText {
 
 export async function polishText(text: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<PolishedText | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -406,9 +473,9 @@ export async function polishText(text: string, provider: 'openai' | 'deepseek' |
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<PolishedText>(content) : null;
+    } catch { return null; }
 }
 
 export interface ScenarioPractice {
@@ -421,7 +488,7 @@ export interface ScenarioPractice {
 
 export async function generateScenarioPractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<ScenarioPractice | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -433,14 +500,14 @@ export async function generateScenarioPractice(word: string, provider: 'openai' 
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<ScenarioPractice>(content) : null;
+    } catch { return null; }
 }
 
 export async function generateUsagePractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<ScenarioPractice | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -466,9 +533,9 @@ export async function generateUsagePractice(word: string, provider: 'openai' | '
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<ScenarioPractice>(content) : null;
+    } catch { return null; }
 }
 
 export interface StructurePractice {
@@ -479,7 +546,7 @@ export interface StructurePractice {
 
 export async function generateStructurePractice(topic: string, structure: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<StructurePractice | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -491,9 +558,9 @@ export async function generateStructurePractice(topic: string, structure: string
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<StructurePractice>(content) : null;
+    } catch { return null; }
 }
 
 export interface LogicExpansion {
@@ -505,7 +572,7 @@ export interface LogicExpansion {
 
 export async function expandLogic(point: string, mode: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<LogicExpansion | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -517,9 +584,9 @@ export async function expandLogic(point: string, mode: string, provider: 'openai
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<LogicExpansion>(content) : null;
+    } catch { return null; }
 }
 
 export interface OutlineResult {
@@ -533,7 +600,7 @@ export interface OutlineResult {
 
 export async function generateOutline(theme: string, type: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<OutlineResult | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         {
@@ -545,18 +612,18 @@ export async function generateOutline(theme: string, type: string, provider: 'op
     ];
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" }, provider);
-        return content ? JSON.parse(content.replace(/```json/g, '').replace(/```/g, '').trim()) : null;
-    } catch (e) { return null; }
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<OutlineResult>(content) : null;
+    } catch { return null; }
 }
 
 export async function generateArticle(topic: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<string | null> {
     const config = getAIConfig(provider, overrides);
-    if (!config.apiKey) return null;
+    if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
         { role: "system", content: "撰写约150字优美公文段落。" },
         { role: "user", content: `主题：${topic}` }
     ];
-    return callChatCompletion(messages, config, undefined, provider);
+    return callChatCompletion(messages, config, undefined);
 }

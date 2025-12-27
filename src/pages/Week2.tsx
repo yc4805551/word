@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { wordPairs } from '../data/week2-data';
 import { cn } from '../lib/utils';
 import { ArrowRight, AlertTriangle, BookOpen, Brain, Loader2, RefreshCw, GraduationCap, Sparkles, Upload, Zap, Trash2 } from 'lucide-react';
@@ -103,7 +103,7 @@ function SmartTraining() {
 
         // Clean ID format: ___[1]___ or ____【1】__
         // Legacy formats: ______（hint） or ( 1 )
-        const parts = lesson.practice.text.split(/((?:_+[\[【]\d+[\]】]_+)|(?:_+[\[【].*?[\]】]_+[（(].*?[)）])|(?:_+（[^）]+）)|(?:[（(][^)）]+[)）]))/);
+        const parts = lesson.practice.text.split(/((?:_+[[【]\d+[\]】]_+)|(?:_+[[【].*?[\]】]_+[（(].*?[)）])|(?:_+（[^）]+）)|(?:[（(][^)）]+[)）]))/);
 
         let blankIndexCounter = 0; // Counter for fallback matching
 
@@ -116,7 +116,7 @@ function SmartTraining() {
                     let isBlankLike = false;
 
                     // 1. Try match clean ID format: ___[1]___
-                    const matchCleanID = cleanPart.match(/^_+[\[【](\d+)[\]】]_+$/);
+                    const matchCleanID = cleanPart.match(/^_+[[【](\d+)[\]】]_+$/);
                     if (matchCleanID) {
                         idStr = matchCleanID[1];
                         isBlankLike = true;
@@ -124,7 +124,7 @@ function SmartTraining() {
 
                     // 2. Try match new format with hint (Legacy transition): ___[1]___（hint）
                     if (!isBlankLike) {
-                        const matchNew = cleanPart.match(/^_+[\[【](.*?)[\]】]_+[（(](.*)[)）]$/);
+                        const matchNew = cleanPart.match(/^_+[[【](.*?)[\]】]_+[（(](.*)[)）]$/);
                         if (matchNew) {
                             idStr = matchNew[1].trim();
                             hint = matchNew[2].trim();
@@ -453,7 +453,7 @@ interface WordItem {
 function WordUpgrade() {
     const [myWords, setMyWords] = useState<string[]>([]);
     const [selectedWord, setSelectedWord] = useState<{ word: string, mode: 'usage' | 'elimination' } | null>(null);
-    const { vocabList, addToVocab } = useSettings();
+    const { vocabList, addToVocab, aiProvider } = useSettings();
 
     // Load custom vocabulary
     useState(() => {
@@ -589,6 +589,7 @@ function WordUpgrade() {
             {/* AI Scenario Modal */}
             {selectedWord && (
                 <ScenarioPracticeModal
+                    key={`${selectedWord.word}:${selectedWord.mode}:${aiProvider}`}
                     word={selectedWord.word}
                     mode={selectedWord.mode}
                     onClose={() => setSelectedWord(null)}
@@ -600,25 +601,33 @@ function WordUpgrade() {
 
 function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'usage' | 'elimination', onClose: () => void }) {
     const { aiProvider, apiKeys } = useSettings();
-    const [loading, setLoading] = useState(true);
     const [data, setData] = useState<ScenarioPractice | null>(null);
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<'testing' | 'success' | 'fail'>('testing');
+    const [loadError, setLoadError] = useState<string | null>(null);
 
-    // Initial load
-    useState(() => {
+    useEffect(() => {
+        const apiKey = apiKeys[aiProvider]?.trim();
+        if (!apiKey) return;
+
+        let cancelled = false;
         const fetchFunc = mode === 'usage' ? generateUsagePractice : generateScenarioPractice;
 
         fetchFunc(word, aiProvider, { apiKey: apiKeys[aiProvider] }).then(res => {
+            if (cancelled) return;
             setData(res);
-            setLoading(false);
+            if (!res) setLoadError('生成失败，请检查网络或稍后重试。');
         });
-    });
+
+        return () => { cancelled = true; };
+    }, [word, mode, aiProvider, apiKeys]);
 
     const check = () => {
         if (!data) return;
+        const normalized = input.trim();
+        if (!normalized) return;
         // Simple fuzzy match check
-        const isMatch = data.target_possibilities.some(t => input.includes(t) || t.includes(input));
+        const isMatch = data.target_possibilities.some(t => normalized.includes(t) || t.includes(normalized));
         if (isMatch) {
             setStatus('success');
         } else {
@@ -642,7 +651,11 @@ function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'u
                     {mode === 'usage' ? "词汇应用训练营" : "口头语消灭模拟器"}
                 </h4>
 
-                {loading ? (
+                {!apiKeys[aiProvider]?.trim() ? (
+                    <div className="text-center py-8 text-red-500">
+                        未配置 API Key，请到“系统设置”填写后再试。
+                    </div>
+                ) : !data && !loadError ? (
                     <div className="py-12 flex flex-col items-center gap-4 text-slate-500">
                         <Loader2 className={cn("w-10 h-10 animate-spin", mode === 'usage' ? "text-indigo-600" : "text-pink-600")} />
                         <p>AI 正在构建“{word}”的{mode === 'usage' ? "应用" : "专项"}场景...</p>
@@ -689,7 +702,12 @@ function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'u
                                     type="text"
                                     value={input}
                                     onChange={e => setInput(e.target.value)}
-                                    onKeyDown={e => e.key === 'Enter' && check()}
+                                    onKeyDown={(e) => {
+                                        if (e.key !== 'Enter') return;
+                                        e.preventDefault();
+                                        if (!input.trim() || status === 'success') return;
+                                        check();
+                                    }}
                                     className={cn(
                                         "flex-1 px-4 py-3 rounded-xl border outline-none focus:ring-4 transition-all text-lg",
                                         status === 'fail'
@@ -742,7 +760,9 @@ function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'u
                         )}
                     </div>
                 ) : (
-                    <div className="text-center py-8 text-red-500">连接超时，请重试</div>
+                    <div className="text-center py-8 text-red-500">
+                        {loadError || '连接失败，请重试'}
+                    </div>
                 )}
             </div>
         </div>
@@ -756,13 +776,19 @@ function ErrorCorrection() {
     const [draft, setDraft] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<PolishedText | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const handlePolish = async () => {
         if (!draft.trim()) return;
+        setError(null);
         setLoading(true);
         const polished = await polishText(draft, aiProvider, { apiKey: apiKeys[aiProvider] });
         if (polished) {
             setResult(polished);
+        } else {
+            const apiKey = apiKeys[aiProvider]?.trim();
+            setResult(null);
+            setError(apiKey ? '生成失败，请检查网络或稍后重试。' : '未配置 API Key，请到“系统设置”填写后再试。');
         }
         setLoading(false);
     };
@@ -797,6 +823,11 @@ function ErrorCorrection() {
             </div>
 
             {/* Results Display */}
+            {error && (
+                <div className="bg-red-50 border border-red-100 text-red-800 px-4 py-3 rounded-lg">
+                    {error}
+                </div>
+            )}
             {result && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-4">
                     {/* Comparison Card */}

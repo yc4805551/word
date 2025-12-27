@@ -13,19 +13,12 @@ export default function CoWritingCanvas({ initialText = '', onBack }: CoWritingC
     const { aiProvider, apiKeys } = useSettings();
     const [draft, setDraft] = useState(initialText);
     const [input, setInput] = useState('');
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [messages, setMessages] = useState<ChatMessage[]>([
+        { role: 'assistant', content: '你好！我是你的公文写作搭档。请在左侧输入你的草稿，然后在右侧告诉我你想怎么修改（例如：“帮我润色这段话”、“使其更具政治站位”）。' }
+    ]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    // Initial greeting
-    useEffect(() => {
-        if (messages.length === 0) {
-            setMessages([
-                { role: 'assistant', content: '你好！我是你的公文写作搭档。请在左侧输入你的草稿，然后在右侧告诉我你想怎么修改（例如：“帮我润色这段话”、“使其更具政治站位”）。' }
-            ]);
-        }
-    }, [messages.length]);
 
     // Auto-scroll to bottom of chat
     useEffect(() => {
@@ -186,7 +179,7 @@ export default function CoWritingCanvas({ initialText = '', onBack }: CoWritingC
                         写作画布
                     </div>
                     <div className="text-xs text-slate-400 font-mono">
-                        {draft.length} chars
+                        字数：{draft.length}
                     </div>
                 </div>
                 <textarea

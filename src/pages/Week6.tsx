@@ -1,18 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { cn } from '../lib/utils';
 import { ArrowRight } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import type { OutlineResult } from '../lib/ai';
 
 export default function Week6() {
     const location = useLocation();
-    const [activeTab, setActiveTab] = useState<'perspective' | 'report'>('perspective');
-
-    // Auto-switch to report tab if outline data is passed
-    useEffect(() => {
-        if (location.state?.outline) {
-            setActiveTab('report');
-        }
-    }, [location.state]);
+    const outline = (location.state as { outline?: OutlineResult } | null)?.outline;
+    const [activeTab, setActiveTab] = useState<'perspective' | 'report'>(() => (outline ? 'report' : 'perspective'));
 
     return (
         <div className="space-y-6 animate-in fade-in">
@@ -88,25 +83,20 @@ function PerspectiveTraining() {
 
 function ReportWriting() {
     const location = useLocation();
-    const [text, setText] = useState('');
-
-    // Init from outline if present
-    useEffect(() => {
-        if (location.state?.outline && !text) {
-            const o = location.state.outline;
-            let initialDraft = `${o.title}\n\n`;
-            // @ts-ignore
-            o.sections.forEach((sec, idx) => {
-                const num = ['一', '二', '三', '四', '五'][idx] || (idx + 1);
-                initialDraft += `${num}、${sec.lvl1}\n`;
-                // @ts-ignore
-                sec.lvl2.forEach((sub, sIdx) => {
-                    initialDraft += `  （${['一', '二', '三'][sIdx] || (sIdx + 1)}）${sub}\n\n`;
-                });
+    const outline = (location.state as { outline?: OutlineResult } | null)?.outline;
+    const [text, setText] = useState(() => {
+        if (!outline) return '';
+        let initialDraft = `${outline.title}\n\n`;
+        outline.sections.forEach((sec, idx) => {
+            const num = ['一', '二', '三', '四', '五'][idx] || String(idx + 1);
+            initialDraft += `${num}、${sec.lvl1}\n`;
+            sec.lvl2.forEach((sub, sIdx) => {
+                const subNum = ['一', '二', '三'][sIdx] || String(sIdx + 1);
+                initialDraft += `  （${subNum}）${sub}\n\n`;
             });
-            setText(initialDraft);
-        }
-    }, [location.state, text]);
+        });
+        return initialDraft;
+    });
 
     const wordCount = text.length;
 

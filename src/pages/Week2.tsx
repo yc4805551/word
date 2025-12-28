@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { wordPairs } from '../data/week2-data';
 import { cn } from '../lib/utils';
-import { ArrowRight, AlertTriangle, BookOpen, Brain, Loader2, RefreshCw, GraduationCap, Sparkles, Upload, Zap, Trash2 } from 'lucide-react';
+import { ArrowRight, AlertTriangle, BookOpen, Brain, Loader2, RefreshCw, GraduationCap, Sparkles, Upload, Zap, Trash2, FileText, CheckCircle, XCircle, Clock, FileDown, Eye, Trash } from 'lucide-react';
 import { generateArticle, analyzeAndGeneratePractice, polishText, type SmartLesson, type PolishedText, generateScenarioPractice, type ScenarioPractice, generateUsagePractice } from '../lib/ai';
 import { useSettings } from '../context/SettingsContext';
 import myVocabularyRaw from '../data/my-vocabulary.txt?raw';
+import { importMultipleFiles, type ImportedText, type ImportProgress, type ImportError, calculateImportStats, formatFileSize, formatTimestamp, previewText, mergeImportedTexts } from '../lib/textImport';
 
 export default function Week2() {
-    const [activeTab, setActiveTab] = useState<'words' | 'errors' | 'smart'>('words');
+    const [activeTab, setActiveTab] = useState<'words' | 'smart'>('words');
 
     return (
         <div className="space-y-6">
@@ -22,15 +23,6 @@ export default function Week2() {
                     词汇升级训练营
                 </button>
                 <button
-                    onClick={() => setActiveTab('errors')}
-                    className={cn(
-                        "px-4 py-2 rounded-t-lg font-medium transition-colors whitespace-nowrap",
-                        activeTab === 'errors' ? "bg-red-100 text-red-800" : "text-slate-600 hover:bg-slate-50"
-                    )}
-                >
-                    规范表述纠错
-                </button>
-                <button
                     onClick={() => setActiveTab('smart')}
                     className={cn(
                         "px-4 py-2 rounded-t-lg font-medium transition-colors whitespace-nowrap flex items-center gap-2",
@@ -43,7 +35,6 @@ export default function Week2() {
             </div>
 
             {activeTab === 'words' && <WordUpgrade />}
-            {activeTab === 'errors' && <ErrorCorrection />}
             {activeTab === 'smart' && <SmartTraining />}
         </div>
     );
@@ -54,11 +45,19 @@ function SmartTraining() {
     const [topic, setTopic] = useState('');
     const [loading, setLoading] = useState(false);
     const [article, setArticle] = useState<string>('');
-    const [manualInput, setManualInput] = useState(''); // Text area input
+    const [manualInput, setManualInput] = useState('');
     const [lesson, setLesson] = useState<SmartLesson | null>(null);
     const [step, setStep] = useState<'input' | 'selection' | 'study' | 'practice'>('input');
     const [answers, setAnswers] = useState<Record<number, string>>({});
     const [showResults, setShowResults] = useState(false);
+    
+    const [importedTexts, setImportedTexts] = useState<ImportedText[]>([]);
+    const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+    const [importErrors, setImportErrors] = useState<ImportError[]>([]);
+    const [isImporting, setIsImporting] = useState(false);
+    const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
+    const [previewTextId, setPreviewTextId] = useState<string | null>(null);
 
     // Step 1: Generate Article
     const handleGenerateArticle = async () => {
@@ -96,6 +95,65 @@ function SmartTraining() {
 
     const handleCheck = () => {
         setShowResults(true);
+    };
+
+    const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        setIsImporting(true);
+        setImportErrors([]);
+        setImportProgress({
+            total: files.length,
+            processed: 0,
+            currentFile: '',
+            success: 0,
+            failed: 0
+        });
+
+        const result = await importMultipleFiles(
+            files,
+            (progress) => setImportProgress(progress),
+            (log) => console.log(log)
+        );
+
+        setImportedTexts(prev => [...prev, ...result.success]);
+        setImportErrors(result.failed);
+        setIsImporting(false);
+        setImportProgress(null);
+
+        if (result.success.length > 0) {
+            setSelectedTextId(result.success[0].id);
+        }
+    };
+
+    const handleUseImportedText = (textId: string) => {
+        const text = importedTexts.find(t => t.id === textId);
+        if (text) {
+            setArticle(text.content);
+            setStep('selection');
+        }
+    };
+
+    const handleDeleteText = (textId: string) => {
+        setImportedTexts(prev => prev.filter(t => t.id !== textId));
+        if (selectedTextId === textId) {
+            setSelectedTextId(null);
+        }
+    };
+
+    const handlePreviewText = (textId: string) => {
+        setPreviewTextId(textId);
+        setShowPreview(true);
+    };
+
+    const handleMergeSelected = () => {
+        const selectedTexts = importedTexts.filter(t => selectedTextId === t.id);
+        if (selectedTexts.length > 0) {
+            const merged = mergeImportedTexts(selectedTexts);
+            setArticle(merged);
+            setStep('selection');
+        }
     };
 
     const renderPracticeText = () => {
@@ -262,29 +320,178 @@ function SmartTraining() {
             {/* Input Section */}
             {step === 'input' && (
                 <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-xl border border-purple-100 animate-in fade-in">
-                    <div className="max-w-xl mx-auto space-y-4">
-                        <h3 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
-                            <Brain className="w-5 h-5 text-purple-600" />
-                            第一步：输入主题生成范文
-                        </h3>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={topic}
-                                onChange={(e) => setTopic(e.target.value)}
-                                placeholder="输入公文主题，例如：乡村振兴、科技创新"
-                                className="flex-1 px-4 py-2 rounded-lg border border-purple-200 focus:ring-2 focus:ring-purple-200 outline-none shadow-sm"
-                                onKeyDown={(e) => e.key === 'Enter' && handleGenerateArticle()}
-                            />
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        <div className="flex gap-4 border-b border-purple-200 pb-2">
                             <button
-                                onClick={handleGenerateArticle}
-                                disabled={loading || !topic.trim()}
-                                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-2 font-medium"
+                                onClick={() => {}}
+                                className="px-4 py-2 font-medium text-purple-800 border-b-2 border-purple-600"
                             >
-                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                生成
+                                AI 生成范文
+                            </button>
+                            <button
+                                onClick={() => {}}
+                                className="px-4 py-2 font-medium text-purple-600 hover:text-purple-800"
+                            >
+                                导入文本
                             </button>
                         </div>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
+                                    <Brain className="w-5 h-5 text-purple-600" />
+                                    AI 生成范文
+                                </h3>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={topic}
+                                        onChange={(e) => setTopic(e.target.value)}
+                                        placeholder="输入公文主题，例如：乡村振兴、科技创新"
+                                        className="flex-1 px-4 py-2 rounded-lg border border-purple-200 focus:ring-2 focus:ring-purple-200 outline-none shadow-sm"
+                                        onKeyDown={(e) => e.key === 'Enter' && handleGenerateArticle()}
+                                    />
+                                    <button
+                                        onClick={handleGenerateArticle}
+                                        disabled={loading || !topic.trim()}
+                                        className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-2 font-medium"
+                                    >
+                                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        生成
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-semibold text-purple-900 flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-purple-600" />
+                                    导入文本文件
+                                </h3>
+                                <div className="space-y-3">
+                                    <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-purple-300 rounded-lg cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition-all">
+                                        <Upload className="w-5 h-5 text-purple-600" />
+                                        <span className="text-purple-700 font-medium">选择文本或文档</span>
+                                        <input
+                                            type="file"
+                                            accept=".txt,.docx,.md,.log,.csv,.json,.yml,.yaml"
+                                            multiple
+                                            onChange={handleFileImport}
+                                            disabled={isImporting}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                    <p className="text-xs text-slate-500 text-center">
+                                        支持 .txt, .docx, .md, .log, .csv 等文本格式，单文件最大 10MB
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {isImporting && importProgress && (
+                            <div className="bg-white p-4 rounded-lg border border-purple-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium text-purple-900">
+                                        正在导入: {importProgress.currentFile}
+                                    </span>
+                                    <span className="text-sm text-purple-600">
+                                        {importProgress.processed}/{importProgress.total}
+                                    </span>
+                                </div>
+                                <div className="w-full bg-purple-100 rounded-full h-2">
+                                    <div
+                                        className="bg-purple-600 h-2 rounded-full transition-all"
+                                        style={{ width: `${(importProgress.processed / importProgress.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {importedTexts.length > 0 && (
+                            <div className="bg-white p-4 rounded-lg border border-purple-200">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h4 className="font-semibold text-purple-900 flex items-center gap-2">
+                                        <FileDown className="w-4 h-4" />
+                                        已导入文本 ({importedTexts.length})
+                                    </h4>
+                                    <button
+                                        onClick={() => setImportedTexts([])}
+                                        className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1"
+                                    >
+                                        <Trash className="w-3 h-3" />
+                                        清空全部
+                                    </button>
+                                </div>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {importedTexts.map(text => (
+                                        <div
+                                            key={text.id}
+                                            className={cn(
+                                                "flex items-center justify-between p-3 rounded-lg border transition-all",
+                                                selectedTextId === text.id
+                                                    ? "border-purple-500 bg-purple-50"
+                                                    : "border-slate-200 hover:border-purple-300"
+                                            )}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <FileText className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                                                    <span className="font-medium text-slate-800 truncate">
+                                                        {text.fileName}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        {formatTimestamp(text.metadata.importTime)}
+                                                    </span>
+                                                    <span>{formatFileSize(text.metadata.fileSize)}</span>
+                                                    <span>{text.metadata.paragraphCount} 段</span>
+                                                    <span>{text.metadata.characterCount} 字</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => handlePreviewText(text.id)}
+                                                    className="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-100 rounded transition-all"
+                                                    title="预览"
+                                                >
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleUseImportedText(text.id)}
+                                                    className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 transition-all"
+                                                >
+                                                    使用
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteText(text.id)}
+                                                    className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-100 rounded transition-all"
+                                                    title="删除"
+                                                >
+                                                    <Trash className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {importErrors.length > 0 && (
+                            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <h4 className="font-semibold text-red-900 flex items-center gap-2 mb-3">
+                                    <XCircle className="w-4 h-4" />
+                                    导入失败 ({importErrors.length})
+                                </h4>
+                                <div className="space-y-2">
+                                    {importErrors.map((error, index) => (
+                                        <div key={index} className="text-sm text-red-700">
+                                            <span className="font-medium">{error.fileName}:</span> {error.error}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -436,6 +643,68 @@ function SmartTraining() {
                                 </button>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {showPreview && previewTextId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
+                        <div className="flex items-center justify-between p-6 border-b border-slate-200">
+                            <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                                <Eye className="w-5 h-5 text-purple-600" />
+                                文本预览
+                            </h3>
+                            <button
+                                onClick={() => setShowPreview(false)}
+                                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                            >
+                                <XCircle className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {(() => {
+                                const text = importedTexts.find(t => t.id === previewTextId);
+                                if (!text) return null;
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center gap-4 text-sm text-slate-600 pb-4 border-b">
+                                            <span className="font-medium">{text.fileName}</span>
+                                            <span>•</span>
+                                            <span>{formatFileSize(text.metadata.fileSize)}</span>
+                                            <span>•</span>
+                                            <span>{text.metadata.characterCount} 字符</span>
+                                            <span>•</span>
+                                            <span>{text.metadata.paragraphCount} 段落</span>
+                                            <span>•</span>
+                                            <span>编码: {text.metadata.encoding}</span>
+                                        </div>
+                                        <div className="prose prose-slate max-w-none">
+                                            <pre className="whitespace-pre-wrap text-slate-700 leading-relaxed font-sans">
+                                                {text.content}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowPreview(false)}
+                                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-all"
+                            >
+                                关闭
+                            </button>
+                            <button
+                                onClick={() => {
+                                    handleUseImportedText(previewTextId);
+                                    setShowPreview(false);
+                                }}
+                                className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all"
+                            >
+                                使用此文本
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -771,112 +1040,5 @@ function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'u
 
 
 // Refactored ErrorCorrection Component for AI Polishing
-function ErrorCorrection() {
-    const { aiProvider, apiKeys } = useSettings();
-    const [draft, setDraft] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [result, setResult] = useState<PolishedText | null>(null);
-    const [error, setError] = useState<string | null>(null);
 
-    const handlePolish = async () => {
-        if (!draft.trim()) return;
-        setError(null);
-        setLoading(true);
-        const polished = await polishText(draft, aiProvider, { apiKey: apiKeys[aiProvider] });
-        if (polished) {
-            setResult(polished);
-        } else {
-            const apiKey = apiKeys[aiProvider]?.trim();
-            setResult(null);
-            setError(apiKey ? '生成失败，请检查网络或稍后重试。' : '未配置 API Key，请到“系统设置”填写后再试。');
-        }
-        setLoading(false);
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className="bg-gradient-to-r from-red-50 to-orange-50 p-6 rounded-xl border border-red-100">
-                <div className="max-w-3xl mx-auto space-y-4">
-                    <h3 className="text-lg font-semibold text-red-900 flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                        AI 规范表述润色（工信部风格大师）
-                    </h3>
-
-                    <textarea
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        placeholder="在此粘贴您的公文草稿（例如：我们要做大做强数字经济...）"
-                        className="w-full px-4 py-3 rounded-lg border border-red-200 focus:ring-2 focus:ring-red-200 outline-none h-32 resize-none"
-                    />
-
-                    <div className="flex justify-end">
-                        <button
-                            onClick={handlePolish}
-                            disabled={loading || !draft.trim()}
-                            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-all shadow-sm flex items-center gap-2 font-medium"
-                        >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                            {loading ? "正在升维润色..." : "立即润色"}
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Results Display */}
-            {error && (
-                <div className="bg-red-50 border border-red-100 text-red-800 px-4 py-3 rounded-lg">
-                    {error}
-                </div>
-            )}
-            {result && (
-                <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                    {/* Comparison Card */}
-                    <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-xl">
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <div className="p-4 bg-slate-50 rounded-lg border border-slate-100">
-                                <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wider">Original / 原文</h4>
-                                <p className="text-slate-600 leading-relaxed text-sm">{result.original}</p>
-                            </div>
-                            <div className="p-4 bg-green-50 rounded-lg border border-green-100 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-1 bg-green-200 rounded-bl-lg text-[10px] font-bold text-green-800">MIIT STYLE</div>
-                                <h4 className="text-sm font-bold text-green-700 mb-2 uppercase tracking-wider">Polished / 润色后</h4>
-                                <p className="text-slate-800 font-medium leading-relaxed">{result.polished}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Style Analysis */}
-                    <div className="bg-white p-6 rounded-lg border border-purple-100 shadow-md">
-                        <h4 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-                            <Brain className="w-5 h-5 text-purple-600" />
-                            工信部语言风格解析
-                        </h4>
-
-                        <div className="space-y-4">
-                            {result.changes.map((change, idx) => (
-                                <div key={idx} className="flex gap-4 items-start p-3 hover:bg-slate-50 rounded transition-colors border-b border-slate-50 last:border-0">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="line-through text-slate-400 text-xs">{change.original_word}</span>
-                                            <ArrowRight className="w-3 h-3 text-slate-300" />
-                                            <span className="font-bold text-green-700 text-sm">{change.polished_word}</span>
-                                        </div>
-                                        <p className="text-xs text-slate-600 leading-normal">
-                                            <span className="font-semibold text-purple-700">解析：</span>
-                                            {change.rationale}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-4 pt-4 border-t border-purple-50 text-sm text-slate-500 italic">
-                            <span className="font-bold text-purple-700 not-italic">总评：</span> {result.overall_comment}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
 

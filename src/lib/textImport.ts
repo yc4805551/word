@@ -322,7 +322,6 @@ export async function importSingleFile(
 export async function importMultipleFiles(
     files: File[],
     onProgress?: (progress: ImportProgress) => void,
-    onLog?: (log: ImportLog) => void
 ): Promise<{ success: ImportedText[]; failed: ImportError[] }> {
     const success: ImportedText[] = [];
     const failed: ImportError[] = [];
@@ -340,8 +339,7 @@ export async function importMultipleFiles(
         progress.currentFile = file.name;
         onProgress?.({ ...progress });
         
-        const result = await importSingleFile(file, (fileProgress) => {
-            const overallProgress = ((i + fileProgress / 100) / files.length) * 100;
+        const result = await importSingleFile(file, () => {
             onProgress?.({ ...progress });
         });
         

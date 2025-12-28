@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { wordPairs } from '../data/week2-data';
 import { cn } from '../lib/utils';
-import { ArrowRight, AlertTriangle, BookOpen, Brain, Loader2, RefreshCw, GraduationCap, Sparkles, Upload, Zap, Trash2, FileText, CheckCircle, XCircle, Clock, FileDown, Eye, Trash } from 'lucide-react';
-import { generateArticle, analyzeAndGeneratePractice, polishText, type SmartLesson, type PolishedText, generateScenarioPractice, type ScenarioPractice, generateUsagePractice } from '../lib/ai';
+import { ArrowRight, AlertTriangle, BookOpen, Brain, Loader2, RefreshCw, GraduationCap, Sparkles, Upload, Zap, Trash2, FileText, XCircle, Clock, FileDown, Eye, Trash } from 'lucide-react';
+import { generateArticle, analyzeAndGeneratePractice, type SmartLesson, generateScenarioPractice, type ScenarioPractice, generateUsagePractice } from '../lib/ai';
 import { useSettings } from '../context/SettingsContext';
 import myVocabularyRaw from '../data/my-vocabulary.txt?raw';
-import { importMultipleFiles, type ImportedText, type ImportProgress, type ImportError, calculateImportStats, formatFileSize, formatTimestamp, previewText, mergeImportedTexts } from '../lib/textImport';
+import { importMultipleFiles, type ImportedText, type ImportProgress, type ImportError, formatFileSize, formatTimestamp } from '../lib/textImport';
 
 export default function Week2() {
     const [activeTab, setActiveTab] = useState<'words' | 'smart'>('words');
@@ -113,8 +113,7 @@ function SmartTraining() {
 
         const result = await importMultipleFiles(
             files,
-            (progress) => setImportProgress(progress),
-            (log) => console.log(log)
+            (progress) => setImportProgress(progress)
         );
 
         setImportedTexts(prev => [...prev, ...result.success]);
@@ -147,14 +146,6 @@ function SmartTraining() {
         setShowPreview(true);
     };
 
-    const handleMergeSelected = () => {
-        const selectedTexts = importedTexts.filter(t => selectedTextId === t.id);
-        if (selectedTexts.length > 0) {
-            const merged = mergeImportedTexts(selectedTexts);
-            setArticle(merged);
-            setStep('selection');
-        }
-    };
 
     const renderPracticeText = () => {
         if (!lesson) return null;
@@ -1037,8 +1028,5 @@ function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'u
         </div>
     );
 }
-
-
-// Refactored ErrorCorrection Component for AI Polishing
 
 

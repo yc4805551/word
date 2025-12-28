@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { levels } from '../data/typing-levels';
 import { cn } from '../lib/utils';
 import { Timer, Trophy, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
-import { generateText, generateQuiz, generatePinyinQuiz, type Quiz } from '../lib/ai';
+import { generateText, generateQuiz, generateSmartWeek1Training, type Quiz } from '../lib/ai';
 import { useSettings } from '../context/SettingsContext';
+import { getTopWrongWords, getWeaknessScores, loadWeek1Memory, pickWeakPair, recordQuizAttempt, saveWeek1Memory } from '../lib/week1Memory';
 
 export default function Week1() {
     const [currentLevelId, setCurrentLevelId] = useState(0);
     const [customText, setCustomText] = useState<string | null>(null); // Support for custom text
     const [customQuizzes, setCustomQuizzes] = useState<Quiz[]>([]); // Support for dynamic quizzes
+    const [smartGuidance, setSmartGuidance] = useState<string | null>(null);
     const [inputVal, setInputVal] = useState('');
     const [isRunning, setIsRunning] = useState(false);
     const [startTime, setStartTime] = useState<number | null>(null);
@@ -16,6 +18,7 @@ export default function Week1() {
     const [isFinished, setIsFinished] = useState(false);
     const [showQuiz, setShowQuiz] = useState(false);
     const [quizResults, setQuizResults] = useState<Record<number, boolean>>({});
+    const [week1Memory, setWeek1Memory] = useState(() => loadWeek1Memory());
 
     // AI Modal State
     const [showAiModal, setShowAiModal] = useState(false);
@@ -28,10 +31,13 @@ export default function Week1() {
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const timerRef = useRef<number | null>(null);
+    const fileLoadSeqRef = useRef(0);
 
     const currentLevel = levels.find(l => l.id === currentLevelId) || levels[0];
     const targetText = customText || currentLevel.content; // Use custom text if available
     const activeQuizzes = customText ? customQuizzes : currentLevel.quizzes;
+    const weaknessScores = useMemo(() => getWeaknessScores(week1Memory), [week1Memory]);
+    const topWrongWords = useMemo(() => getTopWrongWords(week1Memory, 6), [week1Memory]);
 
     // Timer Logic
     useEffect(() => {
@@ -94,30 +100,56 @@ export default function Week1() {
         setCurrentLevelId(id);
         setCustomText(null); // Clear custom text when switching levels
         setCustomQuizzes([]);
+        setSmartGuidance(null);
         resetTest();
     };
 
     // File Import Logic
+    const handleImportClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+            fileInputRef.current.click();
+        }
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        fileLoadSeqRef.current += 1;
+        const seq = fileLoadSeqRef.current;
+
         const reader = new FileReader();
+        reader.onerror = () => {
+            if (seq !== fileLoadSeqRef.current) return;
+            alert("读取文件失败，请重试或更换 TXT 文件。");
+        };
         reader.onload = async (event) => {
-            const text = event.target?.result as string;
-            if (text) {
+            if (seq !== fileLoadSeqRef.current) return;
+
+            const raw = typeof event.target?.result === 'string' ? event.target.result : '';
+            const text = raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            if (text.trim().length > 0) {
                 setCustomText(text);
+                setSmartGuidance(null);
                 resetTest();
                 // Generate quiz for imported text
                 try {
-                    const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] });
+                    const latestMemory = loadWeek1Memory();
+                    const preferPair = pickWeakPair(latestMemory);
+                    const preferWords = getTopWrongWords(latestMemory, 10);
+                    const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] }, { preferPair, preferWords });
+                    if (seq !== fileLoadSeqRef.current) return;
                     setCustomQuizzes(quizzes);
                 } catch (error) {
                     alert("生成失败，请检查网络或 API 配置。\n" + (error instanceof Error ? error.message : String(error)));
                 }
+            } else {
+                alert("文件内容为空或无法识别，请确认是 TXT 文本。");
             }
         };
         reader.readAsText(file);
+        e.target.value = '';
     };
 
     const handleAiGenerate = async () => {
@@ -126,9 +158,12 @@ export default function Week1() {
         try {
             const text = await generateText(aiTopic, aiProvider, { apiKey: apiKeys[aiProvider] });
             setCustomText(text);
+            setSmartGuidance(null);
 
             // Generate quiz for the generated text
-            const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] });
+            const preferPair = pickWeakPair(week1Memory);
+            const preferWords = getTopWrongWords(week1Memory, 10);
+            const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] }, { preferPair, preferWords });
             setCustomQuizzes(quizzes);
 
             setShowAiModal(false);
@@ -143,20 +178,41 @@ export default function Week1() {
     const handlePinyinTraining = async () => {
         setIsGenerating(true);
         try {
-            const quizzes = await generatePinyinQuiz(aiProvider, { apiKey: apiKeys[aiProvider] });
-            if (quizzes.length === 0) {
+            const preferPair = pickWeakPair(week1Memory);
+            const preferWords = getTopWrongWords(week1Memory, 10);
+            const training = await generateSmartWeek1Training(
+                { preferPair, preferWords, styleReference: currentLevel.content },
+                aiProvider,
+                { apiKey: apiKeys[aiProvider] }
+            );
+
+            if (!training || !training.article.trim() || training.quizzes.length === 0) {
                 alert("生成失败，请重试");
                 return;
             }
-            setCustomText(">>> 专项训练模式 <<<"); // Placeholder to switch view
-            setCustomQuizzes(quizzes);
-            setShowQuiz(true); // Directly show quiz results overlay which contains the quiz UI
-            setQuizResults({});
+            setCustomText(training.article);
+            setCustomQuizzes(training.quizzes);
+            setSmartGuidance(training.guidance || null);
+            resetTest();
         } catch (error) {
             alert("生成失败: " + (error instanceof Error ? error.message : String(error)));
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    const handleQuizAnswer = (idx: number, opt: 'A' | 'B') => {
+        if (quizResults[idx] !== undefined) return;
+        const q = activeQuizzes[idx];
+        if (!q) return;
+        const isCorrectAnswer = opt === q.correct;
+        setQuizResults(prev => ({ ...prev, [idx]: isCorrectAnswer }));
+
+        setWeek1Memory((prev) => {
+            const next = recordQuizAttempt(prev, q, isCorrectAnswer);
+            saveWeek1Memory(next);
+            return next;
+        });
     };
 
     // Stats
@@ -218,7 +274,7 @@ export default function Week1() {
                         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">自定义训练</h4>
 
                         <button
-                            onClick={() => fileInputRef.current?.click()}
+                            onClick={handleImportClick}
                             className={cn(
                                 "w-full flex items-center justify-center space-x-2 px-4 py-2 rounded border border-dashed border-slate-300 text-slate-600 hover:bg-slate-50 hover:border-blue-300 transition-all text-sm",
                                 customText && "bg-blue-50 border-blue-300 text-blue-800"
@@ -248,6 +304,35 @@ export default function Week1() {
                         >
                             <span>🎯 拼音弱点攻克 (in/ing/en/eng)</span>
                         </button>
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">弱项记忆</h4>
+                        <div className="space-y-2">
+                            {weaknessScores.map((s) => (
+                                <div key={s.pair} className="flex items-center justify-between text-xs">
+                                    <span className={cn("font-mono px-2 py-0.5 rounded", s === weaknessScores[0] ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700")}>
+                                        {s.pair}
+                                    </span>
+                                    <span className="text-slate-500">
+                                        错 {s.wrong} / 练 {s.attempts}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+
+                        {topWrongWords.length > 0 && (
+                            <div className="mt-3">
+                                <div className="text-[11px] text-slate-500 mb-2">常错词</div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {topWrongWords.map((w) => (
+                                        <span key={w} className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                                            {w}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -286,6 +371,11 @@ export default function Week1() {
                     <div className="absolute top-2 right-4 text-xs text-slate-400 select-none">
                         {customText ? "自定义范文" : "参考范文"}
                     </div>
+                    {smartGuidance && (
+                        <div className="mb-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            {smartGuidance}
+                        </div>
+                    )}
                     <div className="text-lg leading-9 tracking-wide text-slate-400 select-none official-font whitespace-pre-wrap">
                         {targetText.split('').map((char, idx) => {
                             let className = "";
@@ -339,7 +429,7 @@ export default function Week1() {
                                                     <button
                                                         key={opt}
                                                         disabled={quizResults[idx] !== undefined}
-                                                        onClick={() => setQuizResults(prev => ({ ...prev, [idx]: opt === q.correct }))}
+                                                        onClick={() => handleQuizAnswer(idx, opt)}
                                                         className={cn(
                                                             "py-2 px-4 rounded border text-left transition-all font-mono text-sm",
                                                             quizResults[idx] !== undefined

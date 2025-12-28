@@ -285,11 +285,22 @@ export interface Quiz {
     options: { A: string; B: string };
     correct: 'A' | 'B';
     note?: string;
+    finalPair?: 'in/ing' | 'en/eng';
+    optionFinals?: { A?: string; B?: string };
+    correctFinal?: string;
 }
 
-export async function generateQuiz(text: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<Quiz[]> {
+export async function generateQuiz(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string },
+    options?: { preferPair?: 'in/ing' | 'en/eng'; preferWords?: string[] }
+): Promise<Quiz[]> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return [];
+
+    const preferPair = options?.preferPair;
+    const preferWords = Array.isArray(options?.preferWords) ? options?.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
 
     const messages: ChatMessage[] = [
         {
@@ -305,12 +316,22 @@ export async function generateQuiz(text: string, provider: 'openai' | 'deepseek'
                     "word": "词语（如：运行）",
                     "focus": "易混字（如：行）",
                     "options": { "A": "xín (前)", "B": "xíng (后)" },
-                    "correct": "B"
+                    "correct": "B",
+                    "finalPair": "in/ing 或 en/eng（必填）",
+                    "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
+                    "correctFinal": "in/ing/en/eng 之一（必填）"
                 }
             ]
             注意：返回纯JSON array.`
         },
-        { role: "user", content: `请分析以下文本并生成拼音辨析题：\n${text}` }
+        {
+            role: "user",
+            content: `请分析以下文本并生成拼音辨析题。
+优先考察：${preferPair ?? '自动'}
+优先覆盖这些常错词（若文本中出现则尽量出题）：${preferWords.length ? JSON.stringify(preferWords) : '无'}
+文本：
+${text}`
+        }
     ];
 
     try {
@@ -327,9 +348,16 @@ export async function generateQuiz(text: string, provider: 'openai' | 'deepseek'
 
 }
 
-export async function generatePinyinQuiz(provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<Quiz[]> {
+export async function generatePinyinQuiz(
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string },
+    options?: { preferPair?: 'in/ing' | 'en/eng'; preferWords?: string[] }
+): Promise<Quiz[]> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return [];
+
+    const preferPair = options?.preferPair;
+    const preferWords = Array.isArray(options?.preferWords) ? options?.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
 
     const messages: ChatMessage[] = [
         {
@@ -347,11 +375,19 @@ export async function generatePinyinQuiz(provider: 'openai' | 'deepseek' | 'gemi
                     "focus": "易混字（如：深）",
                     "options": { "A": "shēn (前)", "B": "shēng (后)" },
                     "correct": "A",
-                    "note": "深化，Meaning 'deepen', uses front nasal sound."
+                    "note": "深化，Meaning 'deepen', uses front nasal sound.",
+                    "finalPair": "in/ing 或 en/eng（必填）",
+                    "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
+                    "correctFinal": "in/ing/en/eng 之一（必填）"
                 }
             ]`
         },
-        { role: "user", content: `请生成一组前后鼻音辨析题。` }
+        {
+            role: "user",
+            content: `请生成一组前后鼻音辨析题。
+优先考察：${preferPair ?? '自动'}
+优先覆盖这些常错词（若合理则尽量融入）：${preferWords.length ? JSON.stringify(preferWords) : '无'}`
+        }
     ];
 
     try {
@@ -364,6 +400,74 @@ export async function generatePinyinQuiz(provider: 'openai' | 'deepseek' | 'gemi
         return [];
     } catch {
         return [];
+    }
+}
+
+export interface SmartWeek1Training {
+    article: string;
+    guidance: string;
+    quizzes: Quiz[];
+}
+
+export async function generateSmartWeek1Training(
+    input: {
+        preferPair?: 'in/ing' | 'en/eng';
+        preferWords?: string[];
+        styleReference?: string;
+    },
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<SmartWeek1Training | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const preferPair = input.preferPair;
+    const preferWords = Array.isArray(input.preferWords) ? input.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
+    const styleReference = typeof input.styleReference === 'string' ? input.styleReference.trim() : '';
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个“拼音薄弱环节攻克”的训练设计师，专注于(in/ing, en/eng)。
+你需要输出严格JSON（json_object），包含：
+1) article：300-500字公文风格练习段落，要求自然、可打字。
+2) guidance：一段简短的训练指导（1-3句），解释本次训练重点。
+3) quizzes：8-10个拼音辨析题（针对in/ing或en/eng），每题都必须能归因到 finalPair。
+
+quizzes 数组元素格式：
+{
+  "word": "词语",
+  "focus": "易混字",
+  "options": { "A": "带声调拼音 + (前/后) 标注", "B": "带声调拼音 + (前/后) 标注" },
+  "correct": "A 或 B",
+  "note": "可选：简短提示",
+  "finalPair": "in/ing 或 en/eng（必填）",
+  "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
+  "correctFinal": "in/ing/en/eng 之一（必填）"
+}
+
+约束：
+- 严格排除 an/ang。
+- article 中尽量多出现 preferPair 对应词（弱项密集但要自然）。
+- preferWords 若能自然融入 article 或 quizzes，请优先覆盖。`
+        },
+        {
+            role: "user",
+            content: `优先考察：${preferPair ?? '自动'}
+常错词：${preferWords.length ? JSON.stringify(preferWords) : '无'}
+风格参考（可为空）：
+${styleReference ? styleReference.slice(0, 800) : '无'}`
+        }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        if (!content) return null;
+        const parsed = safeJsonParse<SmartWeek1Training>(content);
+        if (!parsed || typeof parsed.article !== 'string' || !Array.isArray(parsed.quizzes) || typeof parsed.guidance !== 'string') return null;
+        return parsed;
+    } catch {
+        return null;
     }
 }
 

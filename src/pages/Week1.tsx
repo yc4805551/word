@@ -7,6 +7,7 @@ import { useSettings } from '../context/SettingsContext';
 import { getTopWrongWords, getWeaknessScores, loadWeek1Memory, pickWeakPair, recordQuizAttempt, saveWeek1Memory } from '../lib/week1Memory';
 
 export default function Week1() {
+    // Week1: Intelligent Memory Training for Pinyin (in/ing/en/eng)
     const [currentLevelId, setCurrentLevelId] = useState(0);
     const [customText, setCustomText] = useState<string | null>(null); // Support for custom text
     const [customQuizzes, setCustomQuizzes] = useState<Quiz[]>([]); // Support for dynamic quizzes

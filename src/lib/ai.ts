@@ -1,3 +1,5 @@
+import type { StructurePattern } from '../data/week3-data';
+
 export interface AIConfig {
     apiKey: string;
     endpoint: string;
@@ -667,6 +669,58 @@ export async function generateStructurePractice(topic: string, structure: string
     } catch { return null; }
 }
 
+export interface FranklinFeedback {
+    standard_version: string;
+    score: number;
+    diff_analysis: string;
+    key_improvements: string[];
+}
+
+export async function generateFranklinFeedback(
+    topic: string,
+    structure_template: string,
+    user_draft: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<FranklinFeedback | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一位精通“富兰克林写作法”的公文写作教练。该方法的核是：模仿、对比、反馈。
+请执行以下任务：
+1. **生成标杆**：根据用户提供的“主题”和“句式模板”，撰写一个高质量、标准的公文句子（标杆范文）。
+2. **对比分析**：将用户的“仿写初稿”与你生成的“标杆范文”进行对比。
+3. **评价反馈**：
+   - 打分（0-100分）。
+   - 差距分析（Diff Analysis）：指出用户在词汇选用、逻辑递进、气势营造上与标杆的差距。
+   - 改进建议（Key Improvements）：列出3个具体的修改建议。
+
+返回严谨的JSON格式：
+{
+    "standard_version": "...",
+    "score": 85,
+    "diff_analysis": "...",
+    "key_improvements": ["...", "...", "..."]
+}`
+        },
+        {
+            role: "user",
+            content: `
+主题：${topic}
+句式模板：${structure_template}
+用户的仿写初稿：${user_draft}`
+        }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<FranklinFeedback>(content) : null;
+    } catch { return null; }
+}
+
 export interface LogicExpansion {
     original: string;
     expanded: string;
@@ -730,4 +784,59 @@ export async function generateArticle(topic: string, provider: 'openai' | 'deeps
         { role: "user", content: `主题：${topic}` }
     ];
     return callChatCompletion(messages, config, undefined);
+}
+
+export async function extractStructureFromText(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<StructurePattern[]> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return [];
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个语言学专家和公文写作教练，擅长拆解文章中的修辞手法和句式结构。
+请分析用户提供的文本，提取出其中具有“可复用性”的高价值句式（如：排比、递进、对仗、因果、对比等）。
+
+请返回一个 JSON 数组，每个元素包含：
+- id: 随机生成一个数字ID.
+- name: 给这个句式起一个专业的名称（4-6字，如“层层递进式”）.
+- template: 提炼出的句式骨架（用...代表变量内容）.
+- description: 简要说明该句式的用法和修辞效果。
+- difficulty: 难度等级 (1-5).
+
+返回格式：
+[
+  {
+    "id": 101,
+    "name": "...",
+    "template": "...",
+    "description": "...",
+    "difficulty": 3
+  }
+]
+注意：请严格返回 JSON 数组。`
+        },
+        {
+            role: "user",
+            content: `文本内容：
+${text.slice(0, 2000)}`
+        }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        if (!content) return [];
+
+        const parsed = safeJsonParse(content);
+        if (Array.isArray(parsed)) return parsed as StructurePattern[];
+        // Handle wrapped object case
+        if (isObject(parsed) && Array.isArray((parsed as any).patterns)) return (parsed as any).patterns as StructurePattern[];
+
+        return [];
+    } catch {
+        return [];
+    }
 }

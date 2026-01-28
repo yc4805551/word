@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd "$(dirname "$0")"
+
 # Check if node is available
 if ! command -v node &> /dev/null; then
     echo "Error: Node.js is not found in the PATH."

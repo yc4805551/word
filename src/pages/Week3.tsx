@@ -465,8 +465,12 @@ function LogicAmplifier() {
         setLoading(true);
         setResult(null);
 
-        const selectedModeName = logicModes.find(m => m.id === mode)?.name || 'Dialectical';
-        const res = await expandLogic(point, selectedModeName, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const selectedMode = logicModes.find(m => m.id === mode);
+        const selectedModeName = selectedMode?.name || 'Dialectical';
+        // @ts-ignore
+        const instruction = selectedMode?.instruction;
+
+        const res = await expandLogic(point, selectedModeName, instruction, aiProvider, { apiKey: apiKeys[aiProvider] });
         if (res) setResult(res);
         setLoading(false);
     };

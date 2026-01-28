@@ -728,7 +728,7 @@ export interface LogicExpansion {
     breakdown: string;
 }
 
-export async function expandLogic(point: string, mode: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<LogicExpansion | null> {
+export async function expandLogic(point: string, mode: string, instruction?: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<LogicExpansion | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -738,7 +738,7 @@ export async function expandLogic(point: string, mode: string, provider: 'openai
             content: `公文写作教练，擅长逻辑扩写。
 返回JSON: { "original": "...", "expanded": "...", "logic_mode": "...", "breakdown": "..." }`
         },
-        { role: "user", content: `核心观点：${point}\n逻辑模式：${mode}` }
+        { role: "user", content: `核心观点：${point}\n逻辑模式：${mode}\n${instruction ? `具体指导要求：${instruction}` : ''}` }
     ];
 
     try {
@@ -838,5 +838,161 @@ ${text.slice(0, 2000)}`
         return [];
     } catch {
         return [];
+    }
+}
+
+export interface EvidenceCheckResult {
+    original_text: string;
+    claims: Array<{
+        segment: string;
+        issue: string; // e.g. "Lacks data", "Vague assertion"
+        suggestion: string; // e.g. "Add specific sales figures", "Cite a report"
+    }>;
+    overall_score: number; // 0-100 authenticity/rigor score
+}
+
+export async function analyzeEvidence(
+    text: string, 
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai', 
+    overrides?: { apiKey?: string }
+): Promise<EvidenceCheckResult | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个严谨的审稿人，专注于“基于证据的论证”（Evidence-Based Argumentation）。
+请分析用户文本，找出那些“缺乏证据支撑”的断言（Claims）。
+对于每个问题断言，请指出具体问题（如：数据缺失、来源不明、过于主观），并给出补充证据的建议（如：引用具体数据、文献、案例）。
+
+请返回 JSON 格式：
+{
+  "original_text": "...",
+  "claims": [
+    { "segment": "原文中的具体句子...", "issue": "缺乏数据支撑", "suggestion": "补充具体的同比增长率数据" }
+  ],
+  "overall_score": 75 
+}`
+        },
+        {
+            role: "user",
+            content: `请分析这段文本的论证严谨性：\n${text}`
+        }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<EvidenceCheckResult>(content) : null;
+    } catch {
+        return null;
+    }
+}
+
+export interface WinstonStarResult {
+    original_text: string;
+    elements: {
+        slogan: { present: boolean; content: string; suggestion: string };
+        symbol: { present: boolean; content: string; suggestion: string };
+        salient: { present: boolean; content: string; suggestion: string };
+        surprise: { present: boolean; content: string; suggestion: string };
+        story: { present: boolean; content: string; suggestion: string };
+    };
+    overall_score: number;
+}
+
+export async function analyzeWinstonStar(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<WinstonStarResult | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个沟通专家，擅长使用“温斯顿之星”（Winston's Star）模型来提升沟通的吸引力。
+请分析用户提供的文本，检查是否包含以下五个要素：
+1. Slogan (口号/金句)：是否有一句朗朗上口的总结性语句？
+2. Symbol (象征/符号)：是否有可视化的比喻或象征？
+3. Salient (突出的核心点)：核心观点是否突出？
+4. Surprise (惊奇/新知)：是否提供了反直觉的数据、新观点或令人惊讶的事实？
+5. Story (故事/案例)：是否讲述了具体生动的故事或案例？
+
+对于每个要素，判断是否存在，提取存在的内容，或给出改进建议。
+返回 JSON 格式：
+{
+  "original_text": "...",
+  "elements": {
+    "slogan": { "present": false, "content": "", "suggestion": "建议提炼一句朗朗上口的各种..." },
+    "symbol": { "present": true, "content": "把项目比作引擎", "suggestion": "" },
+    ...
+  },
+  "overall_score": 60
+}`
+        },
+        {
+            role: "user",
+            content: `请分析这段文本的吸引力：\n${text}`
+        }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<WinstonStarResult>(content) : null;
+    } catch {
+        return null;
+    }
+}
+
+export interface AuthenticityResult {
+    original_text: string;
+    score: number; // 0-100 (100 = Very Real/Authentic, 0 = Full of Jargon/BS)
+    issues: Array<{
+        segment: string;
+        type: 'cliche' | 'jargon' | 'empty';
+        suggestion: string;
+    }>;
+    comment: string;
+}
+
+export async function checkAuthenticity(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<AuthenticityResult | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个“废话探测器”和“真实性”捍卫者，类似于 MIT 教授强调的 "True! True! True!"。
+请检查用户文本，找出那些“假大空”、陈词滥调、为了显得专业而堆砌的行话（Jargon）或空洞的废话。
+你需要严厉地指出这些问题，并建议更朴实、更具体、更真诚的表达方式。
+
+返回 JSON 格式：
+{
+  "original_text": "...",
+  "score": 40, // 分数越低表示废话越多
+  "issues": [
+    { "segment": "协同范式转移", "type": "jargon", "suggestion": "直接说‘一起改变做事情的方法’" },
+    { "segment": "狠抓落实", "type": "cliche", "suggestion": "具体说‘制定了每周检查制度’" }
+  ],
+  "comment": "整段话充满了正确的废话，没有信息量。"
+}`
+        },
+        {
+            role: "user",
+            content: `请检测这段话的“含真率”（真实性）：\n${text}`
+        }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<AuthenticityResult>(content) : null;
+    } catch {
+        return null;
     }
 }

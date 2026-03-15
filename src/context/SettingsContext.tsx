@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type AIProvider = 'openai' | 'deepseek' | 'gemini';
+type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance';
 
 interface SettingsContextType {
     aiProvider: AIProvider;
@@ -10,6 +10,8 @@ interface SettingsContextType {
     vocabList: string[];
     setVocabList: (list: string[]) => void;
     addToVocab: (words: string[]) => void;
+    bytedanceModel: string;
+    setBytedanceModel: (model: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -24,6 +26,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         openai: localStorage.getItem('key_openai') || '',
         deepseek: localStorage.getItem('key_deepseek') || '',
         gemini: localStorage.getItem('key_gemini') || '',
+        qwen: localStorage.getItem('key_qwen') || '',
+        bytedance: localStorage.getItem('key_bytedance') || '',
+    });
+
+    const [bytedanceModel, _setBytedanceModel] = useState<string>(() => {
+        return localStorage.getItem('bytedance_model') || 'doubao-pro-4k';
     });
 
     // Load initial vocab from a default list or local storage if we wanted specific persistence
@@ -38,6 +46,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const handleSetApiKey = (provider: AIProvider, key: string) => {
         setApiKeys(prev => ({ ...prev, [provider]: key }));
         localStorage.setItem(`key_${provider}`, key);
+    };
+
+    const setBytedanceModel = (model: string) => {
+        _setBytedanceModel(model);
+        localStorage.setItem('bytedance_model', model);
     };
 
     const addToVocab = (words: string[]) => {
@@ -55,7 +68,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             setApiKey: handleSetApiKey,
             vocabList,
             setVocabList,
-            addToVocab
+            addToVocab,
+            bytedanceModel,
+            setBytedanceModel
         }}>
             {children}
         </SettingsContext.Provider>

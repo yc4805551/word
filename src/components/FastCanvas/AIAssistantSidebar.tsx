@@ -13,7 +13,7 @@ interface Suggestion {
 
 export default function AIAssistantSidebar() {
     const { editor } = useEditorContext();
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, bytedanceModel } = useSettings();
     const [mode, setMode] = useState<'realtime' | 'audit' | 'chat'>('realtime');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -51,7 +51,10 @@ export default function AIAssistantSidebar() {
         setIsAnalyzing(true);
         setAnalysisError(null);
         try {
-            const result = await polishText(text, aiProvider, { apiKey: apiKeys[aiProvider] });
+            const result = await polishText(text, aiProvider, { 
+                apiKey: apiKeys[aiProvider],
+                bytedanceModel: bytedanceModel 
+            });
             if (result && result.changes && result.changes.length > 0) {
                 const newSuggestions = result.changes.map((c: any, i: number) => ({
                     id: Date.now().toString() + i,
@@ -85,7 +88,12 @@ export default function AIAssistantSidebar() {
         try {
             const documentContext = editor.getText();
             // Pass the updated history including the current user message
-            const response = await chatWithDocument([...chatHistory, userMsg], documentContext, aiProvider, { apiKey: apiKeys[aiProvider] });
+            const response = await chatWithDocument(
+                [...chatHistory, userMsg], 
+                documentContext, 
+                aiProvider, 
+                { apiKey: apiKeys[aiProvider], bytedanceModel: bytedanceModel }
+            );
             
             if (response.success && response.data) {
                 setChatHistory(prev => [...prev, { role: 'assistant', content: response.data! }]);
@@ -107,7 +115,10 @@ export default function AIAssistantSidebar() {
         setIsAuditing(true);
         setAuditError(null);
         try {
-            const result = await deepAuditDocument(text, aiProvider, { apiKey: apiKeys[aiProvider] });
+            const result = await deepAuditDocument(text, aiProvider, { 
+                apiKey: apiKeys[aiProvider],
+                bytedanceModel: bytedanceModel 
+            });
             if (result) {
                 setAuditResult(result);
             } else {

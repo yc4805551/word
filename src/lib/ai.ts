@@ -6,20 +6,14 @@ export interface AIConfig {
     model: string;
 }
 
-export function getAIConfig(provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string; endpoint?: string }): AIConfig {
+export function getAIConfig(provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; endpoint?: string; bytedanceModel?: string }): AIConfig {
     let apiKey = import.meta.env.VITE_OPENAI_API_KEY;
     let endpoint = import.meta.env.VITE_OPENAI_ENDPOINT || 'https://api.openai.com/v1/chat/completions';
     let model = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o'; // Intelligent default
 
-    // If overrides provided (from Context), use them
-    if (overrides?.apiKey) {
-        apiKey = overrides.apiKey;
-    }
-
     // Helper to ensure endpoint ends with /chat/completions if it looks like a base URL
     const normalizeEndpoint = (url: string) => {
         if (url.includes('/chat/completions')) return url;
-        // If it ends with slash, remove it before appending
         const base = url.endsWith('/') ? url.slice(0, -1) : url;
         return `${base}/chat/completions`;
     };
@@ -32,11 +26,17 @@ export function getAIConfig(provider: 'openai' | 'deepseek' | 'gemini' = 'openai
     } else if (provider === 'gemini') {
         apiKey = overrides?.apiKey || import.meta.env.VITE_GEMINI_API_KEY;
         const envEndpoint = import.meta.env.VITE_GEMINI_ENDPOINT;
-        // Gemini's official openai-compat base often needs /chat/completions appended if user just pasted the base
         endpoint = envEndpoint ? normalizeEndpoint(envEndpoint) : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
         model = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+    } else if (provider === 'qwen') {
+        apiKey = overrides?.apiKey || import.meta.env.VITE_QWEN_API_KEY;
+        endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+        model = import.meta.env.VITE_QWEN_MODEL || 'qwen-plus';
+    } else if (provider === 'bytedance') {
+        apiKey = overrides?.apiKey || import.meta.env.VITE_BYTEDANCE_API_KEY;
+        endpoint = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
+        model = overrides?.bytedanceModel || import.meta.env.VITE_BYTEDANCE_MODEL || 'doubao-pro-4k';
     } else {
-        // OpenAI default
         apiKey = overrides?.apiKey || import.meta.env.VITE_OPENAI_API_KEY;
         const envEndpoint = import.meta.env.VITE_OPENAI_ENDPOINT;
         endpoint = envEndpoint ? normalizeEndpoint(envEndpoint) : 'https://api.openai.com/v1/chat/completions';
@@ -240,8 +240,8 @@ interface AIResponse {
 
 export async function interactivePolish(
     history: ChatMessage[],
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<AIResponse> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
@@ -257,7 +257,7 @@ export async function interactivePolish(
     }
 }
 
-export async function generateText(prompt: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<string> {
+export async function generateText(prompt: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<string> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) throw new Error(`未配置 ${provider} 的 API Key，请在“系统设置”中填写。`);
 
@@ -294,8 +294,8 @@ export interface Quiz {
 
 export async function generateQuiz(
     text: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string },
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string },
     options?: { preferPair?: 'in/ing' | 'en/eng'; preferWords?: string[] }
 ): Promise<Quiz[]> {
     const config = getAIConfig(provider, overrides);
@@ -351,8 +351,8 @@ ${text}`
 }
 
 export async function generatePinyinQuiz(
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string },
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string },
     options?: { preferPair?: 'in/ing' | 'en/eng'; preferWords?: string[] }
 ): Promise<Quiz[]> {
     const config = getAIConfig(provider, overrides);
@@ -417,8 +417,8 @@ export async function generateSmartWeek1Training(
         preferWords?: string[];
         styleReference?: string;
     },
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<SmartWeek1Training | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
@@ -493,7 +493,7 @@ export interface SmartLesson {
     };
 }
 
-export async function analyzeAndGeneratePractice(article: string, focusWords: string[], provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<SmartLesson | null> {
+export async function analyzeAndGeneratePractice(article: string, focusWords: string[], provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<SmartLesson | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -565,7 +565,7 @@ export interface PolishedText {
     overall_comment: string;
 }
 
-export async function polishText(text: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<PolishedText | null> {
+export async function polishText(text: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<PolishedText | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -592,7 +592,7 @@ export interface ScenarioPractice {
     explanation: string;
 }
 
-export async function generateScenarioPractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<ScenarioPractice | null> {
+export async function generateScenarioPractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<ScenarioPractice | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -611,7 +611,7 @@ export async function generateScenarioPractice(word: string, provider: 'openai' 
     } catch { return null; }
 }
 
-export async function generateUsagePractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<ScenarioPractice | null> {
+export async function generateUsagePractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<ScenarioPractice | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -650,7 +650,7 @@ export interface StructurePractice {
     analysis: string;
 }
 
-export async function generateStructurePractice(topic: string, structure: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<StructurePractice | null> {
+export async function generateStructurePractice(topic: string, structure: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<StructurePractice | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -680,8 +680,8 @@ export async function generateFranklinFeedback(
     topic: string,
     structure_template: string,
     user_draft: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<FranklinFeedback | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
@@ -728,7 +728,7 @@ export interface LogicExpansion {
     breakdown: string;
 }
 
-export async function expandLogic(point: string, mode: string, instruction?: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<LogicExpansion | null> {
+export async function expandLogic(point: string, mode: string, instruction?: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<LogicExpansion | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -756,7 +756,7 @@ export interface OutlineResult {
     comment: string;
 }
 
-export async function generateOutline(theme: string, type: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<OutlineResult | null> {
+export async function generateOutline(theme: string, type: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<OutlineResult | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -775,7 +775,7 @@ export async function generateOutline(theme: string, type: string, provider: 'op
     } catch { return null; }
 }
 
-export async function generateArticle(topic: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai', overrides?: { apiKey?: string }): Promise<string | null> {
+export async function generateArticle(topic: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; bytedanceModel?: string }): Promise<string | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
@@ -788,8 +788,8 @@ export async function generateArticle(topic: string, provider: 'openai' | 'deeps
 
 export async function extractStructureFromText(
     text: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<StructurePattern[]> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return [];
@@ -853,8 +853,8 @@ export interface EvidenceCheckResult {
 
 export async function analyzeEvidence(
     text: string, 
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai', 
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', 
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<EvidenceCheckResult | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
@@ -903,8 +903,8 @@ export interface WinstonStarResult {
 
 export async function analyzeWinstonStar(
     text: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<WinstonStarResult | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
@@ -959,8 +959,8 @@ export interface AuthenticityResult {
 
 export async function checkAuthenticity(
     text: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<AuthenticityResult | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
@@ -999,8 +999,8 @@ export async function checkAuthenticity(
 export async function chatWithDocument(
     history: ChatMessage[],
     documentContext: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<AIResponse> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
@@ -1042,8 +1042,8 @@ export interface AuditResult {
 
 export async function deepAuditDocument(
     text: string,
-    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
-    overrides?: { apiKey?: string }
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai',
+    overrides?: { apiKey?: string; bytedanceModel?: string }
 ): Promise<AuditResult | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;

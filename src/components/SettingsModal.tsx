@@ -8,8 +8,9 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-    const { aiProvider, setAiProvider, apiKeys, setApiKey } = useSettings();
+    const { aiProvider, setAiProvider, apiKeys, setApiKey, bytedanceModel, setBytedanceModel } = useSettings();
     const [localKeys, setLocalKeys] = useState(apiKeys);
+    const [localByteModel, setLocalByteModel] = useState(bytedanceModel);
 
     if (!isOpen) return null;
 
@@ -17,6 +18,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setApiKey('openai', localKeys.openai);
         setApiKey('deepseek', localKeys.deepseek);
         setApiKey('gemini', localKeys.gemini);
+        setApiKey('qwen', localKeys.qwen);
+        setApiKey('bytedance', localKeys.bytedance);
+        setBytedanceModel(localByteModel);
         onClose();
     };
 
@@ -37,8 +41,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {/* Provider Selection */}
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">默认 AI 模型</label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['openai', 'deepseek', 'gemini'] as const).map(p => (
+                        <div className="grid grid-cols-5 gap-2">
+                            {(['openai', 'deepseek', 'gemini', 'qwen', 'bytedance'] as const).map(p => (
                                 <button
                                     key={p}
                                     onClick={() => setAiProvider(p)}
@@ -47,7 +51,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
                                         }`}
                                 >
-                                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                                    {p === 'bytedance' ? '字节' : p === 'qwen' ? 'Qwen' : p.charAt(0).toUpperCase() + p.slice(1)}
                                 </button>
                             ))}
                         </div>
@@ -86,9 +90,48 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 type="password"
                                 value={localKeys.gemini}
                                 onChange={(e) => setLocalKeys(prev => ({ ...prev, gemini: e.target.value }))}
-                                placeholder={import.meta.env.VITE_GEMINI_API_KEY ? "已检测到 .env 配置 (默认使用)" : "AIza..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none placeholder:text-slate-400 placeholder:italic"
+                                placeholder={import.meta.env.VITE_GEMINI_API_KEY ? "已检测到 .env 配置" : "AIza..."}
+                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                             />
+                        </div>
+
+                        {/* Qwen Key */}
+                        <div className="space-y-2">
+                            <div className="text-xs text-slate-500 mb-1">Qwen (DashScope) Key</div>
+                            <input
+                                type="password"
+                                value={localKeys.qwen}
+                                onChange={(e) => setLocalKeys(prev => ({ ...prev, qwen: e.target.value }))}
+                                placeholder="sk-..."
+                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                            />
+                        </div>
+
+                        {/* ByteDance Key & Model */}
+                        <div className="space-y-3 pt-2 border-t border-slate-100">
+                            <div className="space-y-2">
+                                <div className="text-xs text-slate-500 mb-1">字节跳动 (火山引擎) Key</div>
+                                <input
+                                    type="password"
+                                    value={localKeys.bytedance}
+                                    onChange={(e) => setLocalKeys(prev => ({ ...prev, bytedance: e.target.value }))}
+                                    placeholder="API Key..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-xs text-slate-500 mb-1 flex justify-between">
+                                    <span>字节模型选择</span>
+                                    <span className="text-[10px] text-blue-500 font-mono">Doubao-pro-4k</span>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={localByteModel}
+                                    onChange={(e) => setLocalByteModel(e.target.value)}
+                                    placeholder="例如: doubao-pro-4k"
+                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>

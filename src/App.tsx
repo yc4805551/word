@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import Home from './pages/Home';
 
@@ -15,7 +15,7 @@ import { SettingsProvider } from './context/SettingsContext';
 function App() {
   return (
     <SettingsProvider>
-      <BrowserRouter>
+      <HashRouter>
         <Layout>
           <Routes>
             <Route path="/" element={<Home />} />
@@ -28,7 +28,7 @@ function App() {
             <Route path="/canvas" element={<FastCanvas />} />
           </Routes>
         </Layout>
-      </BrowserRouter>
+      </HashRouter>
     </SettingsProvider>
   );
 }

@@ -127,15 +127,21 @@ function WinstonStarAnalyzer() {
     const { aiProvider, apiKeys } = useSettings();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const [result, setResult] = useState<WinstonStarResult | null>(null);
 
     const handleAnalyze = async () => {
         if (!text.trim()) return;
         setLoading(true);
+        setError('');
         setResult(null);
 
         const res = await analyzeWinstonStar(text, aiProvider, { apiKey: apiKeys[aiProvider] });
-        if (res) setResult(res);
+        if (res) {
+            setResult(res);
+        } else {
+            setError('分析请求失败，请检查 API Key 配置或网络连接。');
+        }
         setLoading(false);
     };
 
@@ -165,6 +171,12 @@ function WinstonStarAnalyzer() {
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                         {loading ? "正在分析五要素..." : "进行温斯顿之星分析 (Analyze)"}
                     </button>
+                    {error && (
+                        <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" />
+                            {error}
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 
 export default function Home() {
     return (
@@ -8,8 +8,27 @@ export default function Home() {
                 <h2 className="text-3xl font-bold text-blue-900 official-font">欢迎进入</h2>
                 <p className="text-lg text-slate-600 max-w-2xl mx-auto">
                     本系统旨在将您打造为一名既具速度又有深度的公文高手。
-                    请按照周次循序渐进，完成从基础输入到宏观篇章的全面进阶。
+                    请按照周次循序渐进，或者进入快速画布直接开启智能创作。
                 </p>
+            </div>
+
+            {/* Canvas Entry */}
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-8 text-white shadow-xl relative overflow-hidden group">
+                <div className="absolute right-0 top-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 transition-transform group-hover:scale-110"></div>
+                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Sparkles className="w-6 h-6 text-blue-200" />
+                            <h3 className="text-2xl font-bold official-font">只能快速画布 (公文流转处理站)</h3>
+                        </div>
+                        <p className="text-blue-100 max-w-xl text-lg opacity-90">
+                            支持直接导入Word，边写边查错，AI深度润色，最后**一键导出标准公文格式**。
+                        </p>
+                    </div>
+                    <Link to="/canvas" className="shrink-0 bg-white text-blue-700 px-6 py-3 rounded-xl font-bold text-lg hover:bg-blue-50 transition-colors shadow-lg flex items-center gap-2 group-hover:shadow-blue-900/50">
+                        进入画布 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6">

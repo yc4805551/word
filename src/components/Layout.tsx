@@ -11,6 +11,7 @@ const navItems = [
     { path: '/week4', label: '第四周：骨架搭建', icon: LayoutIcon },
     { path: '/week5', label: '第五周：核心攻坚', icon: FileText },
     { path: '/week6', label: '第六周：大师进阶', icon: Globe },
+    { path: '/canvas', label: '智能快速画布', icon: PenTool },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

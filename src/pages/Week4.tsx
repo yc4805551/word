@@ -172,15 +172,21 @@ function EvidenceVerifier() {
     const { aiProvider, apiKeys } = useSettings();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const [result, setResult] = useState<EvidenceCheckResult | null>(null);
 
     const handleVerify = async () => {
         if (!text.trim()) return;
         setLoading(true);
+        setError('');
         setResult(null);
 
         const res = await analyzeEvidence(text, aiProvider, { apiKey: apiKeys[aiProvider] });
-        if (res) setResult(res);
+        if (res) {
+            setResult(res);
+        } else {
+            setError('校验请求失败，请检查 API Key 配置或网络连接。');
+        }
         setLoading(false);
     };
 
@@ -212,6 +218,12 @@ function EvidenceVerifier() {
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
                         {loading ? "正在进行严谨性校验..." : "开始校验 (Verify Evidence)"}
                     </button>
+                    {error && (
+                        <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            {error}
+                        </div>
+                    )}
                 </div>
             </div>
 

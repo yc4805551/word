@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { cn } from '../lib/utils';
-import { Mountain, FileText, Loader2, Sparkles, UserCheck, RefreshCw, ThumbsUp } from 'lucide-react';
+import { Mountain, FileText, Loader2, Sparkles, UserCheck, RefreshCw, ThumbsUp, AlertTriangle } from 'lucide-react';
 import { checkAuthenticity, type AuthenticityResult, type OutlineResult } from '../lib/ai';
 import { useSettings } from '../context/SettingsContext';
 
@@ -105,15 +105,21 @@ function AuthenticityCheck() {
     const { aiProvider, apiKeys } = useSettings();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
     const [result, setResult] = useState<AuthenticityResult | null>(null);
 
     const handleCheck = async () => {
         if (!text.trim()) return;
         setLoading(true);
+        setError('');
         setResult(null);
 
         const res = await checkAuthenticity(text, aiProvider, { apiKey: apiKeys[aiProvider] });
-        if (res) setResult(res);
+        if (res) {
+            setResult(res);
+        } else {
+            setError('检测请求失败，请检查 API Key 配置或网络连接。');
+        }
         setLoading(false);
     };
 
@@ -145,6 +151,12 @@ function AuthenticityCheck() {
                         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
                         {loading ? "正在启动 '废话探测器'..." : "检测真实性 (Check Authenticity)"}
                     </button>
+                    {error && (
+                        <div className="mt-3 text-sm text-red-600 bg-red-50 p-2 rounded border border-red-100 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4" />
+                            {error}
+                        </div>
+                    )}
                 </div>
             </div>
 

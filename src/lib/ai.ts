@@ -996,3 +996,81 @@ export async function checkAuthenticity(
         return null;
     }
 }
+export async function chatWithDocument(
+    history: ChatMessage[],
+    documentContext: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<AIResponse> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
+
+    const messages: ChatMessage[] = [
+        { 
+            role: "system", 
+            content: `你是一个专业的公文写作助手。以下是用户正在编辑的文档内容：
+---
+${documentContext.slice(0, 10000)}
+---
+请基于以上文档内容回答用户的问题。如果问题与文档无关，请委婉告知并尝试提供通用的公文写作建议。回复请保持专业、严谨且富有建设性。`
+        },
+        ...history
+    ];
+
+    try {
+        const text = await callChatCompletion(messages, config, undefined);
+        if (!text) return { success: false, error: "AI 返回了空消息。" };
+        return { success: true, data: text };
+    } catch (e) {
+        const msg = getErrorMessage(e);
+        if (msg.includes('AbortError')) return { success: false, error: '请求超时，请稍后重试。' };
+        return { success: false, error: msg || "连接 AI 服务失败。" };
+    }
+}
+
+export interface AuditResult {
+    score: number;
+    dimensions: {
+        logic: { score: number; comment: string };
+        format: { score: number; comment: string };
+        wording: { score: number; comment: string };
+        brevity: { score: number; comment: string };
+    };
+    overall_comment: string;
+    suggestions: string[];
+}
+
+export async function deepAuditDocument(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' = 'openai',
+    overrides?: { apiKey?: string }
+): Promise<AuditResult | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages: ChatMessage[] = [
+        { 
+            role: "system", 
+            content: `你是一个极其严苛的公文审查专家。请从逻辑结构、格式规范、用词精准、简洁度四个维度对文本进行深度诊断并打分。
+回复格式（严格 JSON）：
+{
+  "score": 85,
+  "dimensions": {
+    "logic": { "score": 80, "comment": "逻辑基本清晰，但第三段..." },
+    "format": { "score": 90, "comment": "符合基本规范..." },
+    "wording": { "score": 85, "comment": "用词规范，建议..." },
+    "brevity": { "score": 85, "comment": "无明显废话..." }
+  },
+  "overall_comment": "文章整体质量较高，但在...",
+  "suggestions": ["建议1", "建议2"]
+}`
+        },
+        { role: "user", content: `请审计以下公文：\n${text}` }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<AuditResult>(content) : null;
+    } catch { return null; }
+}
+

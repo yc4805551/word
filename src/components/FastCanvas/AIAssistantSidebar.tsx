@@ -35,18 +35,33 @@ export default function AIAssistantSidebar() {
         const { doc } = state;
         let found = false;
 
+        // Normalize the search string (handle zero-width spaces or different types of quotes)
+        const normalize = (str: string) => str.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+        const searchTarget = normalize(suggestion.original);
+
+        if (!searchTarget) {
+            setSuggestions(prev => prev.filter(s => s.id !== id));
+            return;
+        }
+
         // Search for the original text in the document
-        // We use descendants to find the exact character range
         doc.descendants((node, pos) => {
             if (found) return false;
-            if (node.isText && node.text?.includes(suggestion.original)) {
-                const index = node.text.indexOf(suggestion.original);
-                const from = pos + index;
-                const to = from + suggestion.original.length;
-                
-                editor.chain().focus().insertContentAt({ from, to }, suggestion.replacement).run();
-                found = true;
-                return false;
+            if (node.isText && node.text) {
+                const nodeText = normalize(node.text);
+                if (nodeText.includes(searchTarget)) {
+                    // Find the actual index in the original (un-normalized) node text
+                    // because ProseMirror positions depend on the actual bytes
+                    const actualIndex = node.text.indexOf(suggestion.original);
+                    if (actualIndex !== -1) {
+                        const from = pos + actualIndex;
+                        const to = from + suggestion.original.length;
+                        
+                        editor.chain().focus().insertContentAt({ from, to }, suggestion.replacement).run();
+                        found = true;
+                        return false;
+                    }
+                }
             }
             return true;
         });
@@ -54,8 +69,15 @@ export default function AIAssistantSidebar() {
         if (found) {
             setSuggestions(prev => prev.filter(s => s.id !== id));
         } else {
-            // Fallback: If not found in text nodes (e.g. text split across nodes), 
-            // the user might have edited it. We just remove the suggestion.
+            // Enhanced fallback: try a globally flat text search to see if it exists but is fragmented
+            const fullText = doc.textContent;
+            if (fullText.includes(suggestion.original)) {
+                console.warn('Text found in doc but fragmented across nodes:', suggestion.original);
+                alert(`无法自动替换：原文"${suggestion.original}"在文档中跨越了不同格式（如加粗或链接），请手动修改。`);
+            } else {
+                console.warn('Text completely not found:', suggestion.original);
+                alert(`在文档中未找到原文："${suggestion.original}"，可能是您已手动修改。`);
+            }
             setSuggestions(prev => prev.filter(s => s.id !== id));
         }
     };

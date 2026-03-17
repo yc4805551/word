@@ -48,144 +48,160 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
 
                 <div className="p-6 space-y-6">
-                    {/* Provider Selection */}
+                    {/* Provider Selection Grouped */}
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">默认 AI 模型</label>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                            {(['openai', 'deepseek', 'gemini', 'qwen', 'bytedance', 'depocr'] as const).map(p => (
-                                <button
-                                    key={p}
-                                    onClick={() => setAiProvider(p)}
-                                    className={`px-3 py-2 rounded border text-sm font-medium transition-all ${aiProvider === p
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
-                                        }`}
-                                >
-                                    {p === 'bytedance' ? '字节' : p === 'qwen' ? '阿里' : p === 'depocr' ? 'OCR' : p.charAt(0).toUpperCase() + p.slice(1)}
-                                </button>
-                            ))}
+                        <label className="block text-sm font-bold text-slate-700 mb-2">选择模型分类</label>
+                        <div className="space-y-4">
+                            {/* Ali Group */}
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">阿里</span>
+                                <div className="grid grid-cols-1 gap-2">
+                                    <button
+                                        onClick={() => setAiProvider('qwen')}
+                                        className={`px-3 py-2 rounded text-sm font-medium border transition-all ${
+                                            aiProvider === 'qwen'
+                                            ? 'bg-blue-50 text-blue-600 border-blue-200 ring-2 ring-blue-50'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
+                                            }`}
+                                    >
+                                        通义 Qwen
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* ByteDance Group */}
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">字节</span>
+                                <div className="grid grid-cols-1 gap-2">
+                                    <button
+                                        onClick={() => setAiProvider('bytedance')}
+                                        className={`px-3 py-2 rounded text-sm font-medium border transition-all ${
+                                            aiProvider === 'bytedance'
+                                            ? 'bg-blue-50 text-blue-600 border-blue-200 ring-2 ring-blue-50'
+                                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
+                                            }`}
+                                    >
+                                        字节 豆包 (Doubao)
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Others Group */}
+                            <div className="space-y-1">
+                                <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">其他</span>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    {(['openai', 'deepseek', 'gemini', 'depocr'] as const).map(p => (
+                                        <button
+                                            key={p}
+                                            onClick={() => setAiProvider(p)}
+                                            className={`px-2 py-2 rounded text-xs font-medium border transition-all ${
+                                                aiProvider === p
+                                                ? 'bg-blue-50 text-blue-600 border-blue-200 ring-2 ring-blue-50'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
+                                                }`}
+                                        >
+                                            {p === 'depocr' ? 'OCR' : p.charAt(0).toUpperCase() + p.slice(1)}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* API Keys */}
-                    <div className="space-y-3">
+                    {/* Dynamic Settings Fields */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
                         <label className="block text-sm font-bold text-slate-700 flex items-center gap-2">
                             <Key className="w-4 h-4" />
-                            API配置 (UI 设置将覆盖 .env 文件)
+                            {aiProvider === 'qwen' ? '阿里配置' : aiProvider === 'bytedance' ? '字节配置' : '配置详情'}
                         </label>
 
-                        <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-1 flex justify-between">
-                                <span>OpenAI Key</span>
-                                <span className="text-[10px] text-slate-400 italic">Endpoint 可选</span>
-                            </div>
-                            <input
-                                type="password"
-                                value={localKeys.openai}
-                                onChange={(e) => setLocalKeys(prev => ({ ...prev, openai: e.target.value }))}
-                                placeholder={import.meta.env.VITE_OPENAI_API_KEY ? "已检测到 .env 变量" : "sk-..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
-                            />
-                            <input
-                                type="text"
-                                value={localEndpoints.openai}
-                                onChange={(e) => setLocalEndpoints(prev => ({ ...prev, openai: e.target.value }))}
-                                placeholder={import.meta.env.VITE_OPENAI_ENDPOINT || "默认: https://api.openai.com/v1..."}
-                                className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-1">DeepSeek Key</div>
-                            <input
-                                type="password"
-                                value={localKeys.deepseek}
-                                onChange={(e) => setLocalKeys(prev => ({ ...prev, deepseek: e.target.value }))}
-                                placeholder={import.meta.env.VITE_DEEPSEEK_API_KEY ? "已检测到 .env 配置 (默认使用)" : "sk-..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none placeholder:text-slate-400 placeholder:italic"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-1">Gemini Key</div>
-                            <input
-                                type="password"
-                                value={localKeys.gemini}
-                                onChange={(e) => setLocalKeys(prev => ({ ...prev, gemini: e.target.value }))}
-                                placeholder={import.meta.env.VITE_GEMINI_API_KEY ? "已检测到 .env 配置" : "AIza..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
-                            />
-                        </div>
-
-                        {/* Qwen/Ali Key */}
-                        <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-1">阿里 (DashScope/Qwen) Key & Endpoint</div>
-                            <input
-                                type="password"
-                                value={localKeys.qwen}
-                                onChange={(e) => setLocalKeys(prev => ({ ...prev, qwen: e.target.value }))}
-                                placeholder={import.meta.env.VITE_ALI_API_KEY || import.meta.env.VITE_QWEN_API_KEY ? "已检测到 .env 变量" : "sk-..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
-                            />
-                            <input
-                                type="text"
-                                value={localEndpoints.qwen}
-                                onChange={(e) => setLocalEndpoints(prev => ({ ...prev, qwen: e.target.value }))}
-                                placeholder={import.meta.env.VITE_ALI_ENDPOINT || import.meta.env.VITE_QWEN_ENDPOINT || "默认: DashScope 官方"}
-                                className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
-                            />
-                        </div>
-
-                        {/* ByteDance/Doubao Key & Model */}
-                        <div className="space-y-3 pt-2 border-t border-slate-100">
-                            <div className="space-y-2">
-                                <div className="text-xs text-slate-500 mb-1">字节跳动 (火山引擎/豆包) Key & Endpoint</div>
-                                <input
-                                    type="password"
-                                    value={localKeys.bytedance}
-                                    onChange={(e) => setLocalKeys(prev => ({ ...prev, bytedance: e.target.value }))}
-                                    placeholder={import.meta.env.VITE_DOUBAO_API_KEY || import.meta.env.VITE_BYTEDANCE_API_KEY ? "已检测到 .env 变量" : "API Key..."}
-                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
-                                />
-                                <input
-                                    type="text"
-                                    value={localEndpoints.bytedance}
-                                    onChange={(e) => setLocalEndpoints(prev => ({ ...prev, bytedance: e.target.value }))}
-                                    placeholder={import.meta.env.VITE_DOUBAO_ENDPOINT || import.meta.env.VITE_BYTEDANCE_ENDPOINT || "默认: 火山引擎官方"}
-                                    className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <div className="text-xs text-slate-500 mb-1 flex justify-between">
-                                    <span>字节模型选择</span>
-                                    <span className="text-[10px] text-blue-500 font-mono">{import.meta.env.VITE_DOUBAO_MODEL || import.meta.env.VITE_BYTEDANCE_MODEL || 'doubao-pro-4k'}</span>
+                        {aiProvider === 'qwen' && (
+                            <div className="space-y-3 p-3 bg-blue-50/30 rounded-lg border border-blue-100/50">
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500">API Key</div>
+                                    <input
+                                        type="password"
+                                        value={localKeys.qwen}
+                                        onChange={(e) => setLocalKeys(prev => ({ ...prev, qwen: e.target.value }))}
+                                        placeholder={import.meta.env.VITE_ALI_API_KEY || import.meta.env.VITE_QWEN_API_KEY ? "已检测到 .env 变量" : "sk-..."}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                                    />
                                 </div>
-                                <input
-                                    type="text"
-                                    value={localByteModel}
-                                    onChange={(e) => setLocalByteModel(e.target.value)}
-                                    placeholder="例如: doubao-pro-4k"
-                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none"
-                                />
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500">转发 Endpoint (可选)</div>
+                                    <input
+                                        type="text"
+                                        value={localEndpoints.qwen}
+                                        onChange={(e) => setLocalEndpoints(prev => ({ ...prev, qwen: e.target.value }))}
+                                        placeholder={import.meta.env.VITE_ALI_ENDPOINT || import.meta.env.VITE_QWEN_ENDPOINT || "默认: DashScope 官方"}
+                                        className="w-full px-3 py-1.5 border border-slate-200 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* DepOCR Key */}
-                        <div className="space-y-2 pt-2 border-t border-slate-100">
-                            <div className="text-xs text-slate-500 mb-1">DepOCR Key & Endpoint</div>
-                            <input
-                                type="password"
-                                value={localKeys.depocr}
-                                onChange={(e) => setLocalKeys(prev => ({ ...prev, depocr: e.target.value }))}
-                                placeholder={import.meta.env.VITE_DEPOCR_API_KEY ? "已检测到 .env 变量" : "API Key..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
-                            />
-                            <input
-                                type="text"
-                                value={localEndpoints.depocr}
-                                onChange={(e) => setLocalEndpoints(prev => ({ ...prev, depocr: e.target.value }))}
-                                placeholder={import.meta.env.VITE_DEPOCR_ENDPOINT || "转发 Endpoint..."}
-                                className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
-                            />
-                        </div>
+                        {aiProvider === 'bytedance' && (
+                            <div className="space-y-3 p-3 bg-blue-50/30 rounded-lg border border-blue-100/50">
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500">API Key</div>
+                                    <input
+                                        type="password"
+                                        value={localKeys.bytedance}
+                                        onChange={(e) => setLocalKeys(prev => ({ ...prev, bytedance: e.target.value }))}
+                                        placeholder={import.meta.env.VITE_DOUBAO_API_KEY || import.meta.env.VITE_BYTEDANCE_API_KEY ? "已检测到 .env 变量" : "API Key..."}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500">转发 Endpoint (可选)</div>
+                                    <input
+                                        type="text"
+                                        value={localEndpoints.bytedance}
+                                        onChange={(e) => setLocalEndpoints(prev => ({ ...prev, bytedance: e.target.value }))}
+                                        placeholder={import.meta.env.VITE_DOUBAO_ENDPOINT || import.meta.env.VITE_BYTEDANCE_ENDPOINT || "默认: 火山引擎官方"}
+                                        className="w-full px-3 py-1.5 border border-slate-200 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500 flex justify-between">
+                                        <span>模型 ID (Override)</span>
+                                        <span className="text-[10px] text-blue-500 font-mono">{import.meta.env.VITE_DOUBAO_MODEL || import.meta.env.VITE_BYTEDANCE_MODEL || 'doubao-pro-4k'}</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={localByteModel}
+                                        onChange={(e) => setLocalByteModel(e.target.value)}
+                                        placeholder="例如: doubao-pro-4k"
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        {(aiProvider === 'openai' || aiProvider === 'deepseek' || aiProvider === 'gemini' || aiProvider === 'depocr') && (
+                            <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500 capitalize">{aiProvider} API Key</div>
+                                    <input
+                                        type="password"
+                                        value={localKeys[aiProvider]}
+                                        onChange={(e) => setLocalKeys(prev => ({ ...prev, [aiProvider]: e.target.value }))}
+                                        placeholder="API Key..."
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500">转发 Endpoint (可选)</div>
+                                    <input
+                                        type="text"
+                                        value={localEndpoints[aiProvider]}
+                                        onChange={(e) => setLocalEndpoints(prev => ({ ...prev, [aiProvider]: e.target.value }))}
+                                        placeholder="https://..."
+                                        className="w-full px-3 py-1.5 border border-slate-200 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

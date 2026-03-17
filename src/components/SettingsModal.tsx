@@ -8,8 +8,9 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-    const { aiProvider, setAiProvider, apiKeys, setApiKey, bytedanceModel, setBytedanceModel } = useSettings();
+    const { aiProvider, setAiProvider, apiKeys, setApiKey, endpoints, setEndpoint, bytedanceModel, setBytedanceModel } = useSettings();
     const [localKeys, setLocalKeys] = useState(apiKeys);
+    const [localEndpoints, setLocalEndpoints] = useState(endpoints);
     const [localByteModel, setLocalByteModel] = useState(bytedanceModel);
 
     if (!isOpen) return null;
@@ -21,6 +22,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setApiKey('qwen', localKeys.qwen);
         setApiKey('bytedance', localKeys.bytedance);
         setApiKey('depocr', localKeys.depocr);
+
+        setEndpoint('openai', localEndpoints.openai);
+        setEndpoint('deepseek', localEndpoints.deepseek);
+        setEndpoint('gemini', localEndpoints.gemini);
+        setEndpoint('qwen', localEndpoints.qwen);
+        setEndpoint('bytedance', localEndpoints.bytedance);
+        setEndpoint('depocr', localEndpoints.depocr);
+
         setBytedanceModel(localByteModel);
         onClose();
     };
@@ -62,17 +71,27 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div className="space-y-3">
                         <label className="block text-sm font-bold text-slate-700 flex items-center gap-2">
                             <Key className="w-4 h-4" />
-                            API Keys配置 (可选)
+                            API配置 (UI 设置将覆盖 .env 文件)
                         </label>
 
                         <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-1">OpenAI Key</div>
+                            <div className="text-xs text-slate-500 mb-1 flex justify-between">
+                                <span>OpenAI Key</span>
+                                <span className="text-[10px] text-slate-400 italic">Endpoint 可选</span>
+                            </div>
                             <input
                                 type="password"
                                 value={localKeys.openai}
                                 onChange={(e) => setLocalKeys(prev => ({ ...prev, openai: e.target.value }))}
-                                placeholder={import.meta.env.VITE_OPENAI_API_KEY ? "已检测到 .env 配置 (默认使用)" : "sk-..."}
-                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none placeholder:text-slate-400 placeholder:italic"
+                                placeholder={import.meta.env.VITE_OPENAI_API_KEY ? "已检测到 .env 变量" : "sk-..."}
+                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                            />
+                            <input
+                                type="text"
+                                value={localEndpoints.openai}
+                                onChange={(e) => setLocalEndpoints(prev => ({ ...prev, openai: e.target.value }))}
+                                placeholder={import.meta.env.VITE_OPENAI_ENDPOINT || "默认: https://api.openai.com/v1..."}
+                                className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
                             />
                         </div>
                         <div className="space-y-2">
@@ -98,7 +117,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
                         {/* Qwen/Ali Key */}
                         <div className="space-y-2">
-                            <div className="text-xs text-slate-500 mb-1">阿里 (DashScope/Qwen) Key</div>
+                            <div className="text-xs text-slate-500 mb-1">阿里 (DashScope/Qwen) Key & Endpoint</div>
                             <input
                                 type="password"
                                 value={localKeys.qwen}
@@ -106,18 +125,32 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                 placeholder={import.meta.env.VITE_ALI_API_KEY || import.meta.env.VITE_QWEN_API_KEY ? "已检测到 .env 变量" : "sk-..."}
                                 className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                             />
+                            <input
+                                type="text"
+                                value={localEndpoints.qwen}
+                                onChange={(e) => setLocalEndpoints(prev => ({ ...prev, qwen: e.target.value }))}
+                                placeholder={import.meta.env.VITE_ALI_ENDPOINT || import.meta.env.VITE_QWEN_ENDPOINT || "默认: DashScope 官方"}
+                                className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
+                            />
                         </div>
 
                         {/* ByteDance/Doubao Key & Model */}
                         <div className="space-y-3 pt-2 border-t border-slate-100">
                             <div className="space-y-2">
-                                <div className="text-xs text-slate-500 mb-1">字节跳动 (火山引擎/豆包) Key</div>
+                                <div className="text-xs text-slate-500 mb-1">字节跳动 (火山引擎/豆包) Key & Endpoint</div>
                                 <input
                                     type="password"
                                     value={localKeys.bytedance}
                                     onChange={(e) => setLocalKeys(prev => ({ ...prev, bytedance: e.target.value }))}
                                     placeholder={import.meta.env.VITE_DOUBAO_API_KEY || import.meta.env.VITE_BYTEDANCE_API_KEY ? "已检测到 .env 变量" : "API Key..."}
                                     className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                                />
+                                <input
+                                    type="text"
+                                    value={localEndpoints.bytedance}
+                                    onChange={(e) => setLocalEndpoints(prev => ({ ...prev, bytedance: e.target.value }))}
+                                    placeholder={import.meta.env.VITE_DOUBAO_ENDPOINT || import.meta.env.VITE_BYTEDANCE_ENDPOINT || "默认: 火山引擎官方"}
+                                    className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
                                 />
                             </div>
                             <div className="space-y-2">
@@ -137,13 +170,20 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
                         {/* DepOCR Key */}
                         <div className="space-y-2 pt-2 border-t border-slate-100">
-                            <div className="text-xs text-slate-500 mb-1">DepOCR Key</div>
+                            <div className="text-xs text-slate-500 mb-1">DepOCR Key & Endpoint</div>
                             <input
                                 type="password"
                                 value={localKeys.depocr}
                                 onChange={(e) => setLocalKeys(prev => ({ ...prev, depocr: e.target.value }))}
                                 placeholder={import.meta.env.VITE_DEPOCR_API_KEY ? "已检测到 .env 变量" : "API Key..."}
                                 className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                            />
+                            <input
+                                type="text"
+                                value={localEndpoints.depocr}
+                                onChange={(e) => setLocalEndpoints(prev => ({ ...prev, depocr: e.target.value }))}
+                                placeholder={import.meta.env.VITE_DEPOCR_ENDPOINT || "转发 Endpoint..."}
+                                className="w-full px-3 py-1.5 border border-slate-100 bg-slate-50 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
                             />
                         </div>
                     </div>

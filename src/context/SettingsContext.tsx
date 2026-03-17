@@ -7,6 +7,8 @@ interface SettingsContextType {
     setAiProvider: (provider: AIProvider) => void;
     apiKeys: Record<AIProvider, string>;
     setApiKey: (provider: AIProvider, key: string) => void;
+    endpoints: Record<AIProvider, string>;
+    setEndpoint: (provider: AIProvider, endpoint: string) => void;
     vocabList: string[];
     setVocabList: (list: string[]) => void;
     addToVocab: (words: string[]) => void;
@@ -31,6 +33,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         depocr: localStorage.getItem('key_depocr') || '',
     });
 
+    const [endpoints, setEndpoints] = useState<Record<AIProvider, string>>({
+        openai: localStorage.getItem('endpoint_openai') || '',
+        deepseek: localStorage.getItem('endpoint_deepseek') || '',
+        gemini: localStorage.getItem('endpoint_gemini') || '',
+        qwen: localStorage.getItem('endpoint_qwen') || '',
+        bytedance: localStorage.getItem('endpoint_bytedance') || '',
+        depocr: localStorage.getItem('endpoint_depocr') || '',
+    });
+
     const [bytedanceModel, _setBytedanceModel] = useState<string>(() => {
         return localStorage.getItem('bytedance_model') || 'doubao-pro-4k';
     });
@@ -47,6 +58,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const handleSetApiKey = (provider: AIProvider, key: string) => {
         setApiKeys(prev => ({ ...prev, [provider]: key }));
         localStorage.setItem(`key_${provider}`, key);
+    };
+
+    const handleSetEndpoint = (provider: AIProvider, endpoint: string) => {
+        setEndpoints(prev => ({ ...prev, [provider]: endpoint }));
+        localStorage.setItem(`endpoint_${provider}`, endpoint);
     };
 
     const setBytedanceModel = (model: string) => {
@@ -67,6 +83,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             setAiProvider,
             apiKeys,
             setApiKey: handleSetApiKey,
+            endpoints,
+            setEndpoint: handleSetEndpoint,
             vocabList,
             setVocabList,
             addToVocab,

@@ -31,12 +31,33 @@ export default function AIAssistantSidebar() {
         const suggestion = suggestions.find(s => s.id === id);
         if (!suggestion || !editor) return;
 
-        // In a real implementation: find the exact position of "original" in the editor
-        // and replace it with "replacement". This is complex with Tiptap without specific extensions.
-        // For simple demo, we just replace all occurrences or use string replacement on text.
-        // A robust way is to use NodeViews or custom marks.
-        // Here we just remove it from the list for UI interaction.
-        setSuggestions(prev => prev.filter(s => s.id !== id));
+        const { state } = editor;
+        const { doc } = state;
+        let found = false;
+
+        // Search for the original text in the document
+        // We use descendants to find the exact character range
+        doc.descendants((node, pos) => {
+            if (found) return false;
+            if (node.isText && node.text?.includes(suggestion.original)) {
+                const index = node.text.indexOf(suggestion.original);
+                const from = pos + index;
+                const to = from + suggestion.original.length;
+                
+                editor.chain().focus().insertContentAt({ from, to }, suggestion.replacement).run();
+                found = true;
+                return false;
+            }
+            return true;
+        });
+
+        if (found) {
+            setSuggestions(prev => prev.filter(s => s.id !== id));
+        } else {
+            // Fallback: If not found in text nodes (e.g. text split across nodes), 
+            // the user might have edited it. We just remove the suggestion.
+            setSuggestions(prev => prev.filter(s => s.id !== id));
+        }
     };
 
     const handleDismissSuggestion = (id: string) => {

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr';
+export type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr';
 
 interface SettingsContextType {
     aiProvider: AIProvider;
@@ -12,8 +12,8 @@ interface SettingsContextType {
     vocabList: string[];
     setVocabList: (list: string[]) => void;
     addToVocab: (words: string[]) => void;
-    bytedanceModel: string;
-    setBytedanceModel: (model: string) => void;
+    models: Record<AIProvider, string>;
+    setModel: (provider: AIProvider, model: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -42,8 +42,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         depocr: localStorage.getItem('endpoint_depocr') || '',
     });
 
-    const [bytedanceModel, _setBytedanceModel] = useState<string>(() => {
-        return localStorage.getItem('bytedance_model') || 'doubao-pro-4k';
+    const [models, setModels] = useState<Record<AIProvider, string>>({
+        openai: localStorage.getItem('model_openai') || '',
+        deepseek: localStorage.getItem('model_deepseek') || '',
+        gemini: localStorage.getItem('model_gemini') || '',
+        qwen: localStorage.getItem('model_qwen') || '',
+        bytedance: localStorage.getItem('model_bytedance') || localStorage.getItem('bytedance_model') || '',
+        depocr: localStorage.getItem('model_depocr') || '',
     });
 
     // Load initial vocab from a default list or local storage if we wanted specific persistence
@@ -65,9 +70,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(`endpoint_${provider}`, endpoint);
     };
 
-    const setBytedanceModel = (model: string) => {
-        _setBytedanceModel(model);
-        localStorage.setItem('bytedance_model', model);
+    const handleSetModel = (provider: AIProvider, model: string) => {
+        setModels(prev => ({ ...prev, [provider]: model }));
+        localStorage.setItem(`model_${provider}`, model);
     };
 
     const addToVocab = (words: string[]) => {
@@ -88,8 +93,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             vocabList,
             setVocabList,
             addToVocab,
-            bytedanceModel,
-            setBytedanceModel
+            models,
+            setModel: handleSetModel
         }}>
             {children}
         </SettingsContext.Provider>

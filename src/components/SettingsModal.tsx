@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { X, Save, Settings, Key } from 'lucide-react';
-import { useSettings } from '../context/SettingsContext';
+import { X, Settings, Key, Save } from 'lucide-react';
+import { useSettings, type AIProvider } from '../context/SettingsContext';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -8,10 +8,10 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-    const { aiProvider, setAiProvider, apiKeys, setApiKey, endpoints, setEndpoint, bytedanceModel, setBytedanceModel } = useSettings();
-    const [localKeys, setLocalKeys] = useState(apiKeys);
-    const [localEndpoints, setLocalEndpoints] = useState(endpoints);
-    const [localByteModel, setLocalByteModel] = useState(bytedanceModel);
+    const { aiProvider, setAiProvider, apiKeys, setApiKey, endpoints, setEndpoint, models, setModel } = useSettings();
+    const [localKeys, setLocalKeys] = useState<Record<AIProvider, string>>(apiKeys);
+    const [localEndpoints, setLocalEndpoints] = useState<Record<AIProvider, string>>(endpoints);
+    const [localModels, setLocalModels] = useState<Record<AIProvider, string>>(models);
 
     if (!isOpen) return null;
 
@@ -30,7 +30,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setEndpoint('bytedance', localEndpoints.bytedance);
         setEndpoint('depocr', localEndpoints.depocr);
 
-        setBytedanceModel(localByteModel);
+        setModel('openai', localModels.openai);
+        setModel('deepseek', localModels.deepseek);
+        setModel('gemini', localModels.gemini);
+        setModel('qwen', localModels.qwen);
+        setModel('bytedance', localModels.bytedance);
+        setModel('depocr', localModels.depocr);
+
         onClose();
     };
 
@@ -128,13 +134,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <div className="text-xs text-slate-500">转发 Endpoint (可选)</div>
+                                    <div className="text-xs text-slate-500 flex justify-between">
+                                        <span>模型 ID (Override)</span>
+                                        <span className="text-[10px] text-blue-500 font-mono">{import.meta.env.VITE_ALI_MODEL || import.meta.env.VITE_QWEN_MODEL || 'qwen-plus'}</span>
+                                    </div>
                                     <input
                                         type="text"
-                                        value={localEndpoints.qwen}
-                                        onChange={(e) => setLocalEndpoints(prev => ({ ...prev, qwen: e.target.value }))}
-                                        placeholder={import.meta.env.VITE_ALI_ENDPOINT || import.meta.env.VITE_QWEN_ENDPOINT || "默认: DashScope 官方"}
-                                        className="w-full px-3 py-1.5 border border-slate-200 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
+                                        value={localModels.qwen}
+                                        onChange={(e) => setLocalModels(prev => ({ ...prev, qwen: e.target.value }))}
+                                        placeholder="例如: qwen-max"
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
                                     />
                                 </div>
                             </div>
@@ -169,8 +178,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     </div>
                                     <input
                                         type="text"
-                                        value={localByteModel}
-                                        onChange={(e) => setLocalByteModel(e.target.value)}
+                                        value={localModels.bytedance}
+                                        onChange={(e) => setLocalModels(prev => ({ ...prev, bytedance: e.target.value }))}
                                         placeholder="例如: doubao-pro-4k"
                                         className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
                                     />
@@ -198,6 +207,24 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         onChange={(e) => setLocalEndpoints(prev => ({ ...prev, [aiProvider]: e.target.value }))}
                                         placeholder="https://..."
                                         className="w-full px-3 py-1.5 border border-slate-200 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="text-xs text-slate-500 flex justify-between">
+                                        <span>模型 ID (Override)</span>
+                                        <span className="text-[10px] text-blue-500 font-mono italic">
+                                            {aiProvider === 'openai' ? (import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o') : 
+                                             aiProvider === 'deepseek' ? (import.meta.env.VITE_DEEPSEEK_MODEL || 'deepseek-chat') :
+                                             aiProvider === 'gemini' ? (import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash') :
+                                             (import.meta.env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free')}
+                                        </span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={localModels[aiProvider]}
+                                        onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
+                                        placeholder="例如: gpt-4-turbo"
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
                                     />
                                 </div>
                             </div>

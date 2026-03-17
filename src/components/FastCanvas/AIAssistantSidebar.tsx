@@ -13,7 +13,7 @@ interface Suggestion {
 
 export default function AIAssistantSidebar() {
     const { editor } = useEditorContext();
-    const { aiProvider, apiKeys, endpoints, bytedanceModel } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [mode, setMode] = useState<'realtime' | 'audit' | 'chat'>('realtime');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -54,7 +54,7 @@ export default function AIAssistantSidebar() {
             const result = await polishText(text, aiProvider, { 
                 apiKey: apiKeys[aiProvider],
                 endpoint: endpoints[aiProvider],
-                bytedanceModel: bytedanceModel 
+                model: models[aiProvider] 
             });
             if (result && result.changes && result.changes.length > 0) {
                 const newSuggestions = result.changes.map((c: any, i: number) => ({
@@ -96,7 +96,7 @@ export default function AIAssistantSidebar() {
                 { 
                     apiKey: apiKeys[aiProvider], 
                     endpoint: endpoints[aiProvider],
-                    bytedanceModel: bytedanceModel 
+                    model: models[aiProvider] 
                 }
             );
             
@@ -123,7 +123,7 @@ export default function AIAssistantSidebar() {
             const result = await deepAuditDocument(text, aiProvider, { 
                 apiKey: apiKeys[aiProvider],
                 endpoint: endpoints[aiProvider],
-                bytedanceModel: bytedanceModel 
+                model: models[aiProvider] 
             });
             if (result) {
                 setAuditResult(result);

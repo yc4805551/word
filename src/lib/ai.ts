@@ -586,8 +586,25 @@ export async function polishText(text: string, provider: 'openai' | 'deepseek' |
     const messages: ChatMessage[] = [
         {
             role: "system",
-            content: `你是一个工信部风格公文写作专家。请润色文字并解析。
-返回JSON: { "original": "...", "polished": "...", "changes": [...], "overall_comment": "..." }`
+            content: `你是一个精通公文写作与纠错的文字专家。请对用户提供的段落进行“体检式”润色。你的首要任务是：
+1. **纠正错别字与标点符号**：发现并修正所有错别字、用词不当、标点符号使用错误。
+2. **修正语法与成分**：修复病句、成分残缺、指代不明等语法问题。
+3. **优化逻辑连贯性**：确保句子之间逻辑紧密，转承自然。
+4. **提升专业风格**：在保证准确的基础，将语体调整为专业、克制、严谨的“工信部及政府公文风格”。
+
+请返回严格的 JSON 格式：
+{
+  "original": "原始文本",
+  "polished": "润色后的全文本",
+  "changes": [
+    {
+      "original_word": "修改前的片段",
+      "polished_word": "修改后的片段",
+      "rationale": "修改理由，如：修正错别字、语法纠错、提升专业度等"
+    }
+  ],
+  "overall_comment": "总体评价，涵盖文章优缺点及改进重点"
+}`
         },
         { role: "user", content: `请润色这段文字：${text}` }
     ];
@@ -1049,6 +1066,7 @@ export interface AuditResult {
         format: { score: number; comment: string };
         wording: { score: number; comment: string };
         brevity: { score: number; comment: string };
+        accuracy: { score: number; comment: string };
     };
     overall_comment: string;
     suggestions: string[];
@@ -1065,18 +1083,25 @@ export async function deepAuditDocument(
     const messages: ChatMessage[] = [
         { 
             role: "system", 
-            content: `你是一个极其严苛的公文审查专家。请从逻辑结构、格式规范、用词精准、简洁度四个维度对文本进行深度诊断并打分。
-回复格式（严格 JSON）：
+            content: `你是一个极其严苛且专业的公文审计专家。请从以下五个维度对文本进行深度诊断并打分：
+1. **逻辑结构 (Logic)**：核心观点是否突出，论证是否严密。
+2. **格式规范 (Format)**：是否符合政府公文行文习惯与排版逻辑。
+3. **用词精准 (Wording)**：是否存在错别字、口语化表达、用词不当。
+4. **简洁度 (Brevity)**：是否存在冗余内容或废话。
+5. **严谨性 (Accuracy)**：语法是否正确，事实描述是否准确。
+
+请返回严格的 JSON 格式（其中 suggestions 需给出具体的修改点）：
 {
-  "score": 85,
+  "score": 总体分值,
   "dimensions": {
-    "logic": { "score": 80, "comment": "逻辑基本清晰，但第三段..." },
-    "format": { "score": 90, "comment": "符合基本规范..." },
-    "wording": { "score": 85, "comment": "用词规范，建议..." },
-    "brevity": { "score": 85, "comment": "无明显废话..." }
+    "logic": { "score": 80, "comment": "..." },
+    "format": { "score": 90, "comment": "..." },
+    "wording": { "score": 85, "comment": "..." },
+    "brevity": { "score": 85, "comment": "..." },
+    "accuracy": { "score": 85, "comment": "..." }
   },
-  "overall_comment": "文章整体质量较高，但在...",
-  "suggestions": ["建议1", "建议2"]
+  "overall_comment": "总评...",
+  "suggestions": ["发现错别字'X'，应为'Y'", "第二段逻辑跳跃，建议增加过渡", "语法错误：'...'成分残缺"]
 }`
         },
         { role: "user", content: `请审计以下公文：\n${text}` }

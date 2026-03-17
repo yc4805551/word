@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useEditorContext } from './EditorProvider';
-import { Sparkles, Check, X, Loader2, Bot, FileText, Send, Award, Target, Zap } from 'lucide-react';
+import { Sparkles, Check, X, Loader2, Bot, FileText, Send, Award, Target, Zap, Shield } from 'lucide-react';
 import { polishText, chatWithDocument, deepAuditDocument, type ChatMessage, type AuditResult } from '../../lib/ai';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -43,7 +43,7 @@ export default function AIAssistantSidebar() {
         setSuggestions(prev => prev.filter(s => s.id !== id));
     };
 
-    const handleRunRealtimeAnalysis = async () => {
+    const handleRunRealtimeAnalysis = useCallback(async () => {
         if (!editor) return;
         const text = editor.getText();
         if (!text.trim()) return;
@@ -76,7 +76,33 @@ export default function AIAssistantSidebar() {
         } finally {
             setIsAnalyzing(false);
         }
-    };
+    }, [editor, aiProvider, apiKeys, endpoints, models]);
+
+    // Automated Real-time Analysis logic
+    const analysisTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        if (!editor || mode !== 'realtime') return;
+
+        const handleUpdate = () => {
+            if (analysisTimeoutRef.current) {
+                clearTimeout(analysisTimeoutRef.current);
+            }
+
+            analysisTimeoutRef.current = setTimeout(() => {
+                handleRunRealtimeAnalysis();
+            }, 5000); // 5 seconds debounce
+        };
+
+        editor.on('update', handleUpdate);
+
+        return () => {
+            editor.off('update', handleUpdate);
+            if (analysisTimeoutRef.current) {
+                clearTimeout(analysisTimeoutRef.current);
+            }
+        };
+    }, [editor, mode, handleRunRealtimeAnalysis]);
 
     const handleSendMessage = async () => {
         if (!chatInput.trim() || !editor || isChatLoading) return;
@@ -181,13 +207,16 @@ export default function AIAssistantSidebar() {
                         )}
                         {!isAnalyzing && suggestions.length === 0 && (
                             <div className="text-center text-sm p-4 text-slate-500">
+                                <div className="mb-4 text-xs font-medium text-blue-500 bg-blue-50 py-1 px-2 rounded-full inline-block animate-pulse">
+                                    实时审核已开启
+                                </div>
+                                <p className="mb-4 text-xs text-slate-400">系统将在您停止输入后自动分析全文</p>
                                 <button 
                                     onClick={handleRunRealtimeAnalysis}
                                     className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium w-full"
                                 >
-                                    主动发起分析
+                                    立即手动发起分析
                                 </button>
-                                <p className="mt-4 text-xs font-mono text-slate-400">（目前采用手动触发，实际可调整为定时防抖触发）</p>
                             </div>
                         )}
                         {suggestions.map(s => (
@@ -272,6 +301,7 @@ export default function AIAssistantSidebar() {
                                     <DimensionCard label="格式" score={auditResult.dimensions.format.score} icon={<Target className="w-3.5 h-3.5" />} />
                                     <DimensionCard label="用词" score={auditResult.dimensions.wording.score} icon={<Award className="w-3.5 h-3.5" />} />
                                     <DimensionCard label="简洁" score={auditResult.dimensions.brevity.score} icon={<Zap className="w-3.5 h-3.5" />} />
+                                    <DimensionCard label="严谨" score={auditResult.dimensions.accuracy.score} icon={<Shield className="w-3.5 h-3.5" />} />
                                 </div>
 
                                 {/* Suggestions */}

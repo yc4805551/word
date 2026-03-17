@@ -6,40 +6,54 @@ export interface AIConfig {
     model: string;
 }
 
-export function getAIConfig(provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' = 'openai', overrides?: { apiKey?: string; endpoint?: string; bytedanceModel?: string }): AIConfig {
-    let apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    let endpoint = import.meta.env.VITE_OPENAI_ENDPOINT || 'https://api.openai.com/v1/chat/completions';
-    let model = import.meta.env.VITE_OPENAI_MODEL || 'gpt-4o'; // Intelligent default
+export function getAIConfig(
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' = 'openai', 
+    overrides?: { apiKey?: string; endpoint?: string; bytedanceModel?: string }
+): AIConfig {
+    const env = import.meta.env;
 
-    // Helper to ensure endpoint ends with /chat/completions if it looks like a base URL
-    const normalizeEndpoint = (url: string) => {
+    // Helper to ensure endpoint ends with /chat/completions
+    const normalizeEndpoint = (url: string | undefined, defaultUrl: string) => {
+        if (!url) return defaultUrl;
         if (url.includes('/chat/completions')) return url;
         const base = url.endsWith('/') ? url.slice(0, -1) : url;
         return `${base}/chat/completions`;
     };
 
-    if (provider === 'deepseek') {
-        apiKey = overrides?.apiKey || import.meta.env.VITE_DEEPSEEK_API_KEY;
-        const envEndpoint = import.meta.env.VITE_DEEPSEEK_ENDPOINT;
-        endpoint = envEndpoint ? normalizeEndpoint(envEndpoint) : 'https://api.deepseek.com/chat/completions';
-        model = import.meta.env.VITE_DEEPSEEK_MODEL || 'deepseek-chat';
-    } else if (provider === 'gemini') {
-        apiKey = overrides?.apiKey || import.meta.env.VITE_GEMINI_API_KEY;
-        const envEndpoint = import.meta.env.VITE_GEMINI_ENDPOINT;
-        endpoint = envEndpoint ? normalizeEndpoint(envEndpoint) : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-        model = import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
-    } else if (provider === 'qwen') {
-        apiKey = overrides?.apiKey || import.meta.env.VITE_QWEN_API_KEY;
-        endpoint = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-        model = import.meta.env.VITE_QWEN_MODEL || 'qwen-plus';
-    } else if (provider === 'bytedance') {
-        apiKey = overrides?.apiKey || import.meta.env.VITE_BYTEDANCE_API_KEY;
-        endpoint = 'https://ark.cn-beijing.volces.com/api/v3/chat/completions';
-        model = overrides?.bytedanceModel || import.meta.env.VITE_BYTEDANCE_MODEL || 'doubao-pro-4k';
-    } else {
-        apiKey = overrides?.apiKey || import.meta.env.VITE_OPENAI_API_KEY;
-        const envEndpoint = import.meta.env.VITE_OPENAI_ENDPOINT;
-        endpoint = envEndpoint ? normalizeEndpoint(envEndpoint) : 'https://api.openai.com/v1/chat/completions';
+    let apiKey = '';
+    let endpoint = '';
+    let model = '';
+
+    switch (provider) {
+        case 'deepseek':
+            apiKey = overrides?.apiKey || env.VITE_DEEPSEEK_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_DEEPSEEK_ENDPOINT, 'https://api.deepseek.com/chat/completions');
+            model = env.VITE_DEEPSEEK_MODEL || 'deepseek-chat';
+            break;
+        case 'gemini':
+            apiKey = overrides?.apiKey || env.VITE_GEMINI_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_GEMINI_ENDPOINT, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
+            model = env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
+            break;
+        case 'qwen':
+            apiKey = overrides?.apiKey || env.VITE_ALI_API_KEY || env.VITE_QWEN_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_ALI_ENDPOINT || env.VITE_QWEN_ENDPOINT, 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions');
+            model = env.VITE_ALI_MODEL || env.VITE_QWEN_MODEL || 'qwen-plus';
+            break;
+        case 'bytedance':
+            apiKey = overrides?.apiKey || env.VITE_DOUBAO_API_KEY || env.VITE_BYTEDANCE_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_DOUBAO_ENDPOINT || env.VITE_BYTEDANCE_ENDPOINT, 'https://ark.cn-beijing.volces.com/api/v3/chat/completions');
+            model = overrides?.bytedanceModel || env.VITE_DOUBAO_MODEL || env.VITE_BYTEDANCE_MODEL || 'doubao-pro-4k';
+            break;
+        case 'depocr':
+            apiKey = overrides?.apiKey || env.VITE_DEPOCR_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_DEPOCR_ENDPOINT, 'https://api.openai.com/v1/chat/completions');
+            model = env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free';
+            break;
+        default: // openai
+            apiKey = overrides?.apiKey || env.VITE_OPENAI_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_OPENAI_ENDPOINT, 'https://api.openai.com/v1/chat/completions');
+            model = env.VITE_OPENAI_MODEL || 'gpt-4o';
     }
 
     return { apiKey, endpoint, model };

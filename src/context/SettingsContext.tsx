@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance';
+type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr';
 
 interface SettingsContextType {
     aiProvider: AIProvider;
@@ -28,6 +28,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         gemini: localStorage.getItem('key_gemini') || '',
         qwen: localStorage.getItem('key_qwen') || '',
         bytedance: localStorage.getItem('key_bytedance') || '',
+        depocr: localStorage.getItem('key_depocr') || '',
     });
 
     const [bytedanceModel, _setBytedanceModel] = useState<string>(() => {

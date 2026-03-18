@@ -592,10 +592,9 @@ export async function polishText(text: string, provider: 'openai' | 'deepseek' |
 3. **优化逻辑连贯性**：确保句子之间逻辑紧密，转承自然。
 4. **提升专业风格**：在保证准确的基础，将语体调整为专业、克制、严谨的“工信部及政府公文风格”。
 
-请返回严格的 JSON 格式：
+请返回严格的 JSON 格式（不要输出全文本，仅输出修改点，以极大提升速度）：
 {
-  "original": "原始文本",
-  "polished": "润色后的全文本",
+  "original": "原始文本片段（可选，若太长可忽略）",
   "changes": [
     {
       "original_word": "修改前的片段",

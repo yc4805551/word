@@ -83,6 +83,40 @@ export default function AIAssistantSidebar() {
         setSuggestions(prev => prev.filter(s => s.id !== id));
     };
 
+    const handleHighlightSuggestion = (originalText: string) => {
+        if (!editor || !originalText) return;
+
+        const { state } = editor;
+        const { doc } = state;
+        let found = false;
+
+        const normalize = (str: string) => str.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+        const searchTarget = normalize(originalText);
+
+        if (!searchTarget) return;
+
+        doc.descendants((node, pos) => {
+            if (found) return false;
+            if (node.isText && node.text) {
+                const nodeText = normalize(node.text);
+                if (nodeText.includes(searchTarget)) {
+                    const actualIndex = node.text.indexOf(originalText);
+                    if (actualIndex !== -1) {
+                        const from = pos + actualIndex;
+                        const to = from + originalText.length;
+                        
+                        editor.commands.setTextSelection({ from, to });
+                        editor.commands.scrollIntoView();
+                        editor.commands.focus();
+                        found = true;
+                        return false;
+                    }
+                }
+            }
+            return true;
+        });
+    };
+
     const handleRunRealtimeAnalysis = useCallback(async () => {
         if (!editor) return;
         const text = editor.getText();
@@ -229,18 +263,22 @@ export default function AIAssistantSidebar() {
                             </div>
                         )}
                         {suggestions.map(s => (
-                            <div key={s.id} className="bg-white p-3 rounded-lg border border-red-100 shadow-sm space-y-2">
+                            <div 
+                                key={s.id} 
+                                onClick={() => handleHighlightSuggestion(s.original)}
+                                className="bg-white p-3 rounded-lg border border-red-100 shadow-sm space-y-2 cursor-pointer hover:border-blue-300 hover:shadow-md transition-all group"
+                            >
                                 <div className="text-sm font-medium text-slate-700 flex flex-wrap items-center gap-2">
                                     <span className="line-through text-red-500 bg-red-50 px-1 rounded">{s.original}</span>
                                     <span className="text-slate-400">→</span>
                                     <span className="text-green-600 bg-green-50 px-1 rounded">{s.replacement}</span>
                                 </div>
                                 <div className="text-xs text-slate-600">{s.rationale}</div>
-                                <div className="flex justify-end gap-2 pt-1 border-t border-slate-50">
-                                    <button onClick={() => handleDismissSuggestion(s.id)} className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded">
+                                <div className="flex justify-end gap-2 pt-1 border-t border-slate-50 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                    <button onClick={(e) => { e.stopPropagation(); handleDismissSuggestion(s.id); }} className="p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded">
                                         <X className="w-3.5 h-3.5" />
                                     </button>
-                                    <button onClick={() => handleApplySuggestion(s.id)} className="p-1.5 text-green-600 hover:bg-green-50 rounded bg-green-50/50">
+                                    <button onClick={(e) => { e.stopPropagation(); handleApplySuggestion(s.id); }} className="p-1.5 text-green-600 hover:bg-green-50 rounded bg-green-50/50">
                                         <Check className="w-3.5 h-3.5" />
                                     </button>
                                 </div>

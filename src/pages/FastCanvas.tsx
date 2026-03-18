@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { EditorProvider } from '../components/FastCanvas/EditorProvider';
 import EditorArea from '../components/FastCanvas/EditorArea';
 import AIAssistantSidebar from '../components/FastCanvas/AIAssistantSidebar';
-import { Upload, Download, Save } from 'lucide-react';
+import { Upload, Download } from 'lucide-react';
 import mammoth from 'mammoth';
 
 export default function FastCanvas() {
@@ -73,7 +73,6 @@ export default function FastCanvas() {
                             className="text-lg font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-0 m-0 w-64 placeholder-slate-400 hover:bg-slate-50 transition-colors focus:bg-white rounded px-1"
                             placeholder="输入文档标题..."
                         />
-                        <StatusBar />
                     </div>
                     
                     <div className="flex items-center gap-2">
@@ -84,13 +83,6 @@ export default function FastCanvas() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <button 
-                            onClick={() => document.dispatchEvent(new CustomEvent('fastcanvas:save'))}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-slate-200"
-                        >
-                            <Save className="w-4 h-4" />
-                            <span className="hidden sm:inline">同步保存</span>
-                        </button>
                         <button 
                             onClick={handleImportClick}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
@@ -141,22 +133,6 @@ export default function FastCanvas() {
 // Inner components to access context
 import { useEditorContext } from '../components/FastCanvas/EditorProvider';
 
-function StatusBar() {
-    const { saveStatus } = useEditorContext();
-    
-    return (
-        <span className={`text-xs flex items-center gap-1 px-2 py-0.5 rounded-full ${
-            saveStatus === 'saved' ? 'bg-green-100 text-green-700' : 
-            saveStatus === 'saving' ? 'bg-yellow-100 text-yellow-700' : 
-            'bg-slate-100 text-slate-500'
-        }`}>
-            {saveStatus === 'saved' && <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>}
-            {saveStatus === 'saving' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>}
-            {saveStatus === 'unsaved' && <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>}
-            {saveStatus === 'saved' ? '已同步' : saveStatus === 'saving' ? '同步中...' : '未同步'}
-        </span>
-    );
-}
 
 function CharacterCountBar() {
     const { editor } = useEditorContext();

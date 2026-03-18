@@ -8,7 +8,7 @@ import { useEditorContext } from './EditorProvider';
 import { exportToOfficialDocx } from '../../lib/docxExport';
 
 export default function EditorArea() {
-    const { setEditor, setSaveStatus } = useEditorContext();
+    const { setEditor } = useEditorContext();
 
     const editor = useEditor({
         extensions: [
@@ -29,9 +29,6 @@ export default function EditorArea() {
                 class: 'prose prose-slate max-w-none focus:outline-none min-h-[500px] p-8',
             },
         },
-        onUpdate: () => {
-            setSaveStatus('unsaved');
-        },
     });
 
     useEffect(() => {
@@ -40,32 +37,7 @@ export default function EditorArea() {
         }
     }, [editor, setEditor]);
 
-    // Handle manual save instead of autosave
-    useEffect(() => {
-        if (!editor) return;
 
-        const handleUpdate = () => {
-            setSaveStatus('unsaved');
-        };
-
-        const handleExplicitSave = () => {
-            setSaveStatus('saving');
-            // Simulate network sync delay
-            setTimeout(() => {
-                const html = editor.getHTML();
-                localStorage.setItem('fast_canvas_draft', html);
-                setSaveStatus('saved');
-            }, 600);
-        };
-
-        editor.on('update', handleUpdate);
-        document.addEventListener('fastcanvas:save', handleExplicitSave);
-
-        return () => {
-            editor.off('update', handleUpdate);
-            document.removeEventListener('fastcanvas:save', handleExplicitSave);
-        };
-    }, [editor, setSaveStatus]);
 
     // Load initial content from local storage if exists
     useEffect(() => {

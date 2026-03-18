@@ -7,8 +7,7 @@ interface EditorContextType {
     setEditor: (editor: Editor | null) => void;
     documentId: string;
     setDocumentId: (id: string) => void;
-    saveStatus: 'saved' | 'saving' | 'unsaved';
-    setSaveStatus: (status: 'saved' | 'saving' | 'unsaved') => void;
+
     title: string;
     setTitle: (title: string) => void;
 }
@@ -18,7 +17,7 @@ const EditorContext = createContext<EditorContextType | undefined>(undefined);
 export function EditorProvider({ children }: { children: React.ReactNode }) {
     const [editor, setEditor] = useState<Editor | null>(null);
     const [documentId, setDocumentId] = useState<string>('default-doc');
-    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
+
     const [title, setTitle] = useState('未命名公文');
 
     return (
@@ -27,8 +26,7 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
             setEditor,
             documentId,
             setDocumentId,
-            saveStatus,
-            setSaveStatus,
+
             title,
             setTitle
         }}>

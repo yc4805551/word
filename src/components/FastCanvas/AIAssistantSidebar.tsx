@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send } from 'lucide-react';
 import { polishText, chatWithDocument, type ChatMessage } from '../../lib/ai';
@@ -17,6 +17,7 @@ export default function AIAssistantSidebar() {
     const [mode, setMode] = useState<'realtime' | 'chat'>('realtime');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [hasAnalyzed, setHasAnalyzed] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [chatInput, setChatInput] = useState('');
     const [isChatLoading, setIsChatLoading] = useState(false);
@@ -123,6 +124,7 @@ export default function AIAssistantSidebar() {
         if (!text.trim()) return;
 
         setIsAnalyzing(true);
+        setHasAnalyzed(true);
         setAnalysisError(null);
         try {
             const result = await polishText(text, aiProvider, { 
@@ -151,32 +153,6 @@ export default function AIAssistantSidebar() {
             setIsAnalyzing(false);
         }
     }, [editor, aiProvider, apiKeys, endpoints, models]);
-
-    // Automated Real-time Analysis logic
-    const analysisTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    useEffect(() => {
-        if (!editor || mode !== 'realtime') return;
-
-        const handleUpdate = () => {
-            if (analysisTimeoutRef.current) {
-                clearTimeout(analysisTimeoutRef.current);
-            }
-
-            analysisTimeoutRef.current = setTimeout(() => {
-                handleRunRealtimeAnalysis();
-            }, 5000); // 5 seconds debounce
-        };
-
-        editor.on('update', handleUpdate);
-
-        return () => {
-            editor.off('update', handleUpdate);
-            if (analysisTimeoutRef.current) {
-                clearTimeout(analysisTimeoutRef.current);
-            }
-        };
-    }, [editor, mode, handleRunRealtimeAnalysis]);
 
     const handleSendMessage = async () => {
         if (!chatInput.trim() || !editor || isChatLoading) return;
@@ -220,7 +196,7 @@ export default function AIAssistantSidebar() {
                     onClick={() => setMode('realtime')}
                     className={`flex-1 py-1.5 px-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${mode === 'realtime' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
                 >
-                    <Sparkles className="w-3.5 h-3.5" /> 实时审查
+                    <Sparkles className="w-3.5 h-3.5" /> 全文审查
                 </button>
                 <button 
                     onClick={() => setMode('chat')}
@@ -234,7 +210,17 @@ export default function AIAssistantSidebar() {
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
                 {mode === 'realtime' && (
                     <div className="space-y-4">
-                        <div className="text-xs text-slate-500 font-medium">发现的问题 ({suggestions.length})</div>
+                        <div className="flex justify-between items-center text-xs text-slate-500 font-medium pb-2 border-b border-slate-100">
+                            <span>发现的问题 ({suggestions.length})</span>
+                            <button 
+                                onClick={handleRunRealtimeAnalysis}
+                                disabled={isAnalyzing}
+                                className="text-blue-600 hover:text-blue-700 disabled:opacity-50 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded"
+                            >
+                                <Sparkles className="w-3 h-3" />
+                                {isAnalyzing ? '分析中...' : '重新分析'}
+                            </button>
+                        </div>
                         {isAnalyzing && (
                             <div className="flex items-center gap-2 text-blue-600 text-sm p-3 bg-blue-50 rounded-lg">
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -248,17 +234,17 @@ export default function AIAssistantSidebar() {
                                 <button onClick={handleRunRealtimeAnalysis} className="ml-auto underline font-bold">重试</button>
                             </div>
                         )}
-                        {!isAnalyzing && suggestions.length === 0 && (
-                            <div className="text-center text-sm p-4 text-slate-500">
-                                <div className="mb-4 text-xs font-medium text-blue-500 bg-blue-50 py-1 px-2 rounded-full inline-block animate-pulse">
-                                    实时审核已开启
+                        {!isAnalyzing && !hasAnalyzed && suggestions.length === 0 && (
+                            <div className="text-center text-sm p-4 text-slate-500 mt-4 border border-blue-100 rounded-lg bg-white shadow-sm">
+                                <div className="mb-4 text-xs font-medium text-blue-600 bg-blue-50 py-1 px-2 rounded-full inline-block">
+                                    手动审核模式
                                 </div>
-                                <p className="mb-4 text-xs text-slate-400">系统将在您停止输入后自动分析全文</p>
+                                <p className="mb-4 text-xs text-slate-500">点击下方按钮可对全文内容进行审查和纠错</p>
                                 <button 
                                     onClick={handleRunRealtimeAnalysis}
-                                    className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium w-full"
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium w-full shadow-sm"
                                 >
-                                    立即手动发起分析
+                                    开始通篇分析
                                 </button>
                             </div>
                         )}
@@ -284,10 +270,11 @@ export default function AIAssistantSidebar() {
                                 </div>
                             </div>
                         ))}
-                        {suggestions.length === 0 && !isAnalyzing && (
-                            <div className="text-center text-sm text-slate-400 py-8">
-                                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                                未发现明显问题
+                        {hasAnalyzed && suggestions.length === 0 && !isAnalyzing && (
+                            <div className="text-center text-sm text-slate-500 py-8 bg-white rounded-lg border border-slate-100 shadow-sm mt-4">
+                                <Sparkles className="w-8 h-8 mx-auto mb-3 text-green-500 opacity-50" />
+                                <div className="mb-1 font-medium text-slate-700">太棒了！</div>
+                                <div className="text-xs text-slate-400">未发现明显问题，若文段有更新可以点击上方重新分析</div>
                             </div>
                         )}
                     </div>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { EditorProvider } from '../components/FastCanvas/EditorProvider';
 import EditorArea from '../components/FastCanvas/EditorArea';
 import AIAssistantSidebar from '../components/FastCanvas/AIAssistantSidebar';
-import { Upload, Download } from 'lucide-react';
+import { Upload, Download, Save } from 'lucide-react';
 import mammoth from 'mammoth';
 
 export default function FastCanvas() {
@@ -85,6 +85,13 @@ export default function FastCanvas() {
                             onChange={handleImport}
                         />
                         <button 
+                            onClick={() => document.dispatchEvent(new CustomEvent('fastcanvas:save'))}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors border border-slate-200"
+                        >
+                            <Save className="w-4 h-4" />
+                            <span className="hidden sm:inline">同步保存</span>
+                        </button>
+                        <button 
                             onClick={handleImportClick}
                             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
                         >
@@ -146,7 +153,7 @@ function StatusBar() {
             {saveStatus === 'saved' && <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>}
             {saveStatus === 'saving' && <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>}
             {saveStatus === 'unsaved' && <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>}
-            {saveStatus === 'saved' ? '已自动保存' : saveStatus === 'saving' ? '保存中...' : '未保存'}
+            {saveStatus === 'saved' ? '已同步' : saveStatus === 'saving' ? '同步中...' : '未同步'}
         </span>
     );
 }

@@ -40,39 +40,30 @@ export default function EditorArea() {
         }
     }, [editor, setEditor]);
 
-    // Handle autosave
+    // Handle manual save instead of autosave
     useEffect(() => {
         if (!editor) return;
 
         const handleUpdate = () => {
             setSaveStatus('unsaved');
-            
-            // Clear existing timeout
-            if ('autosaveTimeout' in window) {
-                clearTimeout(window.autosaveTimeout as number);
-            }
+        };
 
-            // Set saving status after a tiny delay to show activity
-            (window as Window & typeof globalThis & { autosaveTimeout?: number }).autosaveTimeout = window.setTimeout(() => {
-                setSaveStatus('saving');
-                
-                // Simulate save delay, then save taking snapshot
-                setTimeout(() => {
-                    // Here you would typically save to localStorage or backend
-                    const html = editor.getHTML();
-                    localStorage.setItem('fast_canvas_draft', html);
-                    setSaveStatus('saved');
-                }, 500);
-            }, 3000); // 3 seconds debounce
+        const handleExplicitSave = () => {
+            setSaveStatus('saving');
+            // Simulate network sync delay
+            setTimeout(() => {
+                const html = editor.getHTML();
+                localStorage.setItem('fast_canvas_draft', html);
+                setSaveStatus('saved');
+            }, 600);
         };
 
         editor.on('update', handleUpdate);
+        document.addEventListener('fastcanvas:save', handleExplicitSave);
 
         return () => {
             editor.off('update', handleUpdate);
-            if ('autosaveTimeout' in window) {
-                clearTimeout(window.autosaveTimeout as number);
-            }
+            document.removeEventListener('fastcanvas:save', handleExplicitSave);
         };
     }, [editor, setSaveStatus]);
 

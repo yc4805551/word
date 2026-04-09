@@ -3,6 +3,44 @@ import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send } from 'lucide-react';
 import { polishText, chatWithDocument, type ChatMessage } from '../../lib/ai';
 import { useSettings } from '../../context/SettingsContext';
+import ReactMarkdown from 'react-markdown';
+
+function ChatMessageItem({ msg }: { msg: ChatMessage }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const isLong = msg.role === 'assistant' && msg.content.length > 300;
+
+    return (
+        <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[92%] rounded-lg p-3 text-sm flex flex-col ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none shadow-sm' : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200 shadow-sm'}`}>
+                {msg.role === 'user' ? (
+                     <div className="whitespace-pre-wrap">{msg.content}</div>
+                ) : (
+                    <>
+                        <div className="relative">
+                            <div className={`markdown-body ${!isExpanded && isLong ? 'max-h-[220px] overflow-hidden' : ''}`}>
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                            {!isExpanded && isLong && (
+                                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none" />
+                            )}
+                        </div>
+                        {isLong && (
+                            <div className={`flex justify-center mt-2 relative z-10 ${isExpanded ? 'border-t border-slate-200 pt-2' : ''}`}>
+                                <button 
+                                    onClick={() => setIsExpanded(!isExpanded)}
+                                    className="text-blue-600 hover:text-blue-700 font-medium text-xs bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm"
+                                >
+                                    {isExpanded ? '收起内容' : '展开阅读完整内容'}
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
 
 interface Suggestion {
     id: string;
@@ -285,11 +323,7 @@ export default function AIAssistantSidebar() {
                     <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 overflow-hidden">
                         <div className="flex-1 p-3 overflow-y-auto space-y-3">
                             {chatHistory.map((msg, i) => (
-                                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                    <div className={`max-w-[90%] rounded-lg p-2.5 text-sm ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-none shadow-sm' : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200 shadow-sm'}`}>
-                                        <div className="whitespace-pre-wrap">{msg.content}</div>
-                                    </div>
-                                </div>
+                                <ChatMessageItem key={i} msg={msg} />
                             ))}
                             {isChatLoading && (
                                 <div className="flex justify-start">

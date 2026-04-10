@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
-import { Sparkles, Check, X, Loader2, Bot, Send } from 'lucide-react';
-import { polishText, chatWithDocument, type ChatMessage } from '../../lib/ai';
+import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb } from 'lucide-react';
+import { polishText, chatWithDocument, generateAssociativeSuggestions, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
 import { useSettings } from '../../context/SettingsContext';
 import ReactMarkdown from 'react-markdown';
 
@@ -52,10 +52,14 @@ interface Suggestion {
 export default function AIAssistantSidebar() {
     const { editor } = useEditorContext();
     const { aiProvider, apiKeys, endpoints, models } = useSettings();
-    const [mode, setMode] = useState<'realtime' | 'chat'>('realtime');
+    const [mode, setMode] = useState<'realtime' | 'chat' | 'associative'>('realtime');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
+    const [associativeData, setAssociativeData] = useState<AssociativeSuggestion | null>(null);
+    const [isAssociating, setIsAssociating] = useState(false);
+    const [associativeError, setAssociativeError] = useState<string | null>(null);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [chatInput, setChatInput] = useState('');
     const [isChatLoading, setIsChatLoading] = useState(false);
@@ -192,6 +196,37 @@ export default function AIAssistantSidebar() {
         }
     }, [editor, aiProvider, apiKeys, endpoints, models]);
 
+    const handleGetAssociations = useCallback(async () => {
+        if (!editor) return;
+        const text = editor.getText();
+        if (!text.trim()) return;
+
+        setIsAssociating(true);
+        setAssociativeError(null);
+        try {
+            const result = await generateAssociativeSuggestions(text, aiProvider, { 
+                apiKey: apiKeys[aiProvider],
+                endpoint: endpoints[aiProvider],
+                model: models[aiProvider] 
+            });
+            if (result) {
+                setAssociativeData(result);
+            } else {
+                setAssociativeError('无法获取联想数据，请检查 API 配置。');
+            }
+        } catch (e) {
+            console.error("AI Association failed", e);
+            setAssociativeError('获取联想数据的过程中发生错误。');
+        } finally {
+            setIsAssociating(false);
+        }
+    }, [editor, aiProvider, apiKeys, endpoints, models]);
+
+    const handleInsertText = (text: string) => {
+        if (!editor) return;
+        editor.chain().focus().insertContent(text).run();
+    };
+
     const handleSendMessage = async () => {
         if (!chatInput.trim() || !editor || isChatLoading) return;
 
@@ -241,6 +276,12 @@ export default function AIAssistantSidebar() {
                     className={`flex-1 py-1.5 px-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${mode === 'chat' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
                 >
                     <Bot className="w-3.5 h-3.5" /> 写作问答
+                </button>
+                <button 
+                    onClick={() => setMode('associative')}
+                    className={`flex-1 py-1.5 px-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${mode === 'associative' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-100'}`}
+                >
+                    <Lightbulb className="w-3.5 h-3.5" /> 灵感联想
                 </button>
             </div>
 
@@ -313,6 +354,105 @@ export default function AIAssistantSidebar() {
                                 <Sparkles className="w-8 h-8 mx-auto mb-3 text-green-500 opacity-50" />
                                 <div className="mb-1 font-medium text-slate-700">太棒了！</div>
                                 <div className="text-xs text-slate-400">未发现明显问题，若文段有更新可以点击上方重新分析</div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {mode === 'associative' && (
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center text-xs text-slate-500 font-medium pb-2 border-b border-slate-100">
+                            <span>写作灵感提示</span>
+                            <button 
+                                onClick={handleGetAssociations}
+                                disabled={isAssociating}
+                                className="text-blue-600 hover:text-blue-700 disabled:opacity-50 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded"
+                            >
+                                <Lightbulb className="w-3 h-3" />
+                                {isAssociating ? '获取中...' : '获取联想'}
+                            </button>
+                        </div>
+                        {isAssociating && (
+                            <div className="flex items-center gap-2 text-blue-600 text-sm p-3 bg-blue-50 rounded-lg">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                正在思考接下来可以怎么写...
+                            </div>
+                        )}
+                        {associativeError && (
+                            <div className="text-xs text-red-500 p-3 bg-red-50 rounded-lg border border-red-100 flex items-center gap-2">
+                                <X className="w-3.5 h-3.5 shrink-0" />
+                                <span>{associativeError}</span>
+                                <button onClick={handleGetAssociations} className="ml-auto underline font-bold">重试</button>
+                            </div>
+                        )}
+                        {!isAssociating && !associativeData && (
+                            <div className="text-center text-sm p-4 text-slate-500 mt-4 border border-blue-100 rounded-lg bg-white shadow-sm">
+                                <div className="mb-4 text-xs font-medium text-blue-600 bg-blue-50 py-1 px-2 rounded-full inline-block">
+                                    💡 激发写作思路
+                                </div>
+                                <p className="mb-4 text-xs text-slate-500">点击下方按钮可基于您当前的写作进度获取思路指引，和好词名句推荐。</p>
+                                <button 
+                                    onClick={handleGetAssociations}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium w-full shadow-sm"
+                                >
+                                    获取写作灵感
+                                </button>
+                            </div>
+                        )}
+                        {associativeData && !isAssociating && (
+                            <div className="space-y-4">
+                                {associativeData.directions && associativeData.directions.length > 0 && (
+                                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
+                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> 后续思路指引
+                                        </div>
+                                        <ul className="text-xs text-slate-600 space-y-1 pl-3 list-disc">
+                                            {associativeData.directions.map((d, i) => (
+                                                <li key={i}>{d}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                {associativeData.vocabulary && associativeData.vocabulary.length > 0 && (
+                                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
+                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> 推荐高级词汇
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {associativeData.vocabulary.map((v, i) => (
+                                                <button 
+                                                    key={i} 
+                                                    onClick={() => handleInsertText(v)}
+                                                    className="text-xs bg-slate-50 border border-slate-200 text-slate-700 px-2 py-1 rounded hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors"
+                                                    title="点击插入光标处"
+                                                >
+                                                    {v}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {associativeData.quotes && associativeData.quotes.length > 0 && (
+                                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
+                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> 推荐素材名言
+                                        </div>
+                                        <div className="space-y-2">
+                                            {associativeData.quotes.map((q, i) => (
+                                                <div key={i} className="group relative pr-8">
+                                                    <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">{q}</div>
+                                                    <button 
+                                                        onClick={() => handleInsertText(q)}
+                                                        className="absolute right-1 top-1 bottom-1 px-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-all flex justify-center items-center"
+                                                        title="点击插入"
+                                                    >
+                                                        <Check className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

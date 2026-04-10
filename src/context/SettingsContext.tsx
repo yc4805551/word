@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-export type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr';
+export type AIProvider = 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm';
 
 interface SettingsContextType {
     aiProvider: AIProvider;
@@ -21,7 +21,7 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // OpenAI as default
     const [aiProvider, setAiProvider] = useState<AIProvider>(() => {
-        return (localStorage.getItem('ai_provider') as AIProvider) || 'openai';
+        return (localStorage.getItem('ai_provider') as AIProvider) || 'anythingllm';
     });
 
     const [apiKeys, setApiKeys] = useState<Record<AIProvider, string>>({
@@ -31,6 +31,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         qwen: localStorage.getItem('key_qwen') || '',
         bytedance: localStorage.getItem('key_bytedance') || '',
         depocr: localStorage.getItem('key_depocr') || '',
+        anythingllm: localStorage.getItem('key_anythingllm') || '',
     });
 
     const [endpoints, setEndpoints] = useState<Record<AIProvider, string>>({
@@ -40,6 +41,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         qwen: localStorage.getItem('endpoint_qwen') || '',
         bytedance: localStorage.getItem('endpoint_bytedance') || '',
         depocr: localStorage.getItem('endpoint_depocr') || '',
+        anythingllm: localStorage.getItem('endpoint_anythingllm') || 'https://ycoffice.tail36f59d.ts.net/api/v1/openai/chat/completions',
     });
 
     const [models, setModels] = useState<Record<AIProvider, string>>({
@@ -49,6 +51,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         qwen: localStorage.getItem('model_qwen') || '',
         bytedance: localStorage.getItem('model_bytedance') || localStorage.getItem('bytedance_model') || '',
         depocr: localStorage.getItem('model_depocr') || '',
+        anythingllm: localStorage.getItem('model_anythingllm') || 'anythingllm',
     });
 
     // Load initial vocab from a default list or local storage if we wanted specific persistence
@@ -108,3 +111,4 @@ export function useSettings() {
     }
     return context;
 }
+

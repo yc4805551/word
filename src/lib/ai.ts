@@ -7,7 +7,7 @@ export interface AIConfig {
 }
 
 export function getAIConfig(
-    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' = 'openai', 
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', 
     overrides?: { apiKey?: string; endpoint?: string; model?: string }
 ) : AIConfig {
     const env = import.meta.env;
@@ -49,6 +49,11 @@ export function getAIConfig(
             apiKey = overrides?.apiKey || env.VITE_DEPOCR_API_KEY || '';
             endpoint = normalizeEndpoint(env.VITE_DEPOCR_ENDPOINT, 'https://api.openai.com/v1/chat/completions');
             model = overrides?.model || env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free';
+            break;
+        case 'anythingllm':
+            apiKey = overrides?.apiKey || env.VITE_ANYTHINGLLM_API_KEY || '';
+            endpoint = normalizeEndpoint(env.VITE_ANYTHINGLLM_ENDPOINT, 'https://ycoffice.tail36f59d.ts.net/api/v1/openai/chat/completions');
+            model = overrides?.model || env.VITE_ANYTHINGLLM_MODEL || 'anythingllm';
             break;
         default: // openai
             apiKey = overrides?.apiKey || env.VITE_OPENAI_API_KEY || '';
@@ -1112,3 +1117,42 @@ export async function deepAuditDocument(
     } catch { return null; }
 }
 
+
+export interface AssociativeSuggestion {
+    directions: string[];
+    vocabulary: string[];
+    quotes: string[];
+}
+
+export async function generateAssociativeSuggestions(
+    textContext: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'anythingllm',
+    overrides?: { apiKey?: string; endpoint?: string; model?: string }
+): Promise<AssociativeSuggestion | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey) && provider !== 'anythingllm') return null; // AnythingLLM might be local without apiKey
+
+    const messages: ChatMessage[] = [
+        {
+            role: "system",
+            content: `你是一个智能公文写作辅助助手。用户正在撰写公文（或者打字练习），由于遇到了瓶颈或者需要灵感，向你请求“联想数据”。
+请阅读用户目前写下的内容，并返回JSON：
+1. "directions": 提供 2-3 条接下来可以继续写的内容方向（如“补充背景说明”、“提出具体举措”、“强调预期成果”），每条方向保持在20个字以内。
+2. "vocabulary": 推荐 4-6 个非常契合当前语境的高级公文词汇或四字成语，供用户直接点选插入。
+3. "quotes": 推荐 1-2 句符合当前主题、具有号召力或总结性的好句/素材片段/政策名言，供用户参考或直接使用。
+
+返回格式必须是严格JSON（不需要Markdown fence）：
+{
+  "directions": ["方向1", "方向2"],
+  "vocabulary": ["词汇1", "词汇2"],
+  "quotes": ["名言1", "引语2"]
+}`
+        },
+        { role: "user", content: `当前写作内容如下：\n\n${textContext.slice(-1000)}` }
+    ];
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<AssociativeSuggestion>(content) : null;
+    } catch { return null; }
+}

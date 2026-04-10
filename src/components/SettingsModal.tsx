@@ -22,6 +22,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setApiKey('qwen', localKeys.qwen);
         setApiKey('bytedance', localKeys.bytedance);
         setApiKey('depocr', localKeys.depocr);
+        setApiKey('anythingllm', localKeys.anythingllm);
 
         setEndpoint('openai', localEndpoints.openai);
         setEndpoint('deepseek', localEndpoints.deepseek);
@@ -29,6 +30,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setEndpoint('qwen', localEndpoints.qwen);
         setEndpoint('bytedance', localEndpoints.bytedance);
         setEndpoint('depocr', localEndpoints.depocr);
+        setEndpoint('anythingllm', localEndpoints.anythingllm);
 
         setModel('openai', localModels.openai);
         setModel('deepseek', localModels.deepseek);
@@ -36,6 +38,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setModel('qwen', localModels.qwen);
         setModel('bytedance', localModels.bytedance);
         setModel('depocr', localModels.depocr);
+        setModel('anythingllm', localModels.anythingllm);
 
         onClose();
     };
@@ -96,7 +99,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             <div className="space-y-1">
                                 <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">其他</span>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                    {(['openai', 'deepseek', 'gemini', 'depocr'] as const).map(p => (
+                                    {(['openai', 'deepseek', 'gemini', 'depocr', 'anythingllm'] as const).map(p => (
                                         <button
                                             key={p}
                                             onClick={() => setAiProvider(p)}
@@ -106,7 +109,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                                 : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
                                                 }`}
                                         >
-                                            {p === 'depocr' ? 'OCR' : p.charAt(0).toUpperCase() + p.slice(1)}
+                                            {p === 'depocr' ? 'OCR' : p === 'anythingllm' ? 'AnythingLLM' : p.charAt(0).toUpperCase() + p.slice(1)}
                                         </button>
                                     ))}
                                 </div>
@@ -187,10 +190,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             </div>
                         )}
 
-                        {(aiProvider === 'openai' || aiProvider === 'deepseek' || aiProvider === 'gemini' || aiProvider === 'depocr') && (
+                        {(aiProvider === 'openai' || aiProvider === 'deepseek' || aiProvider === 'gemini' || aiProvider === 'depocr' || aiProvider === 'anythingllm') && (
                             <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                                 <div className="space-y-2">
-                                    <div className="text-xs text-slate-500 capitalize">{aiProvider} API Key</div>
+                                    <div className="text-xs text-slate-500 capitalize">{aiProvider === 'anythingllm' ? 'AnythingLLM Workspace API Key' : `${aiProvider} API Key`}</div>
                                     <input
                                         type="password"
                                         value={localKeys[aiProvider]}

@@ -51,7 +51,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         qwen: localStorage.getItem('model_qwen') || '',
         bytedance: localStorage.getItem('model_bytedance') || localStorage.getItem('bytedance_model') || '',
         depocr: localStorage.getItem('model_depocr') || '',
-        anythingllm: localStorage.getItem('model_anythingllm') || 'anythingllm',
+        anythingllm: localStorage.getItem('model_anythingllm') || 'inf_work',
     });
 
     // Load initial vocab from a default list or local storage if we wanted specific persistence

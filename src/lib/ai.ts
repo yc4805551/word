@@ -53,7 +53,7 @@ export function getAIConfig(
         case 'anythingllm':
             apiKey = overrides?.apiKey || env.VITE_ANYTHINGLLM_API_KEY || '';
             endpoint = normalizeEndpoint(env.VITE_ANYTHINGLLM_ENDPOINT, 'https://ycoffice.tail36f59d.ts.net/api/v1/openai/chat/completions');
-            model = overrides?.model || env.VITE_ANYTHINGLLM_MODEL || 'anythingllm';
+            model = overrides?.model || env.VITE_ANYTHINGLLM_MODEL || 'inf_work';
             break;
         default: // openai
             apiKey = overrides?.apiKey || env.VITE_OPENAI_API_KEY || '';

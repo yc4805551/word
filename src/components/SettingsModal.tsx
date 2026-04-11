@@ -99,7 +99,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             <div className="space-y-1">
                                 <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">其他</span>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                    {(['openai', 'deepseek', 'gemini', 'depocr', 'anythingllm'] as const).map(p => (
+                                    {(['openai', 'deepseek', 'gemini', 'depocr'] as const).map(p => (
                                         <button
                                             key={p}
                                             onClick={() => setAiProvider(p)}
@@ -109,7 +109,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                                 : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400'
                                                 }`}
                                         >
-                                            {p === 'depocr' ? 'OCR' : p === 'anythingllm' ? 'AnythingLLM' : p.charAt(0).toUpperCase() + p.slice(1)}
+                                            {p === 'depocr' ? 'OCR' : p.charAt(0).toUpperCase() + p.slice(1)}
                                         </button>
                                     ))}
                                 </div>
@@ -190,10 +190,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             </div>
                         )}
 
-                        {(aiProvider === 'openai' || aiProvider === 'deepseek' || aiProvider === 'gemini' || aiProvider === 'depocr' || aiProvider === 'anythingllm') && (
+                        {(aiProvider === 'openai' || aiProvider === 'deepseek' || aiProvider === 'gemini' || aiProvider === 'depocr') && (
                             <div className="space-y-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                                 <div className="space-y-2">
-                                    <div className="text-xs text-slate-500 capitalize">{aiProvider === 'anythingllm' ? 'AnythingLLM Workspace API Key' : `${aiProvider} API Key`}</div>
+                                    <div className="text-xs text-slate-500 capitalize">{`${aiProvider} API Key`}</div>
                                     <input
                                         type="password"
                                         value={localKeys[aiProvider]}
@@ -222,28 +222,53 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                              (import.meta.env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free')}
                                         </span>
                                     </div>
-                                     {aiProvider === 'anythingllm' ? (
-                                         <select
-                                             value={localModels[aiProvider] || 'inf_work'}
-                                             onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
-                                             className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none appearance-none"
-                                         >
-                                             <option value="inf_work">inf_work</option>
-                                             <option value="inf_knowledge">inf_knowledge</option>
-                                             <option value="inf_yc">inf_yc</option>
-                                         </select>
-                                     ) : (
-                                         <input
-                                             type="text"
-                                             value={localModels[aiProvider]}
-                                             onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
-                                             placeholder="例如: gpt-4-turbo"
-                                             className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
-                                         />
-                                     )}
+                                    <input
+                                        type="text"
+                                        value={localModels[aiProvider]}
+                                        onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
+                                        placeholder="例如: gpt-4-turbo"
+                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
+                                    />
                                 </div>
                             </div>
                         )}
+
+                        {/* AnythingLLM Dedicated Section */}
+                        <div className="space-y-3 p-3 bg-purple-50/30 rounded-lg border border-purple-100/50">
+                            <label className="block text-sm font-bold text-purple-800">AnythingLLM 配置</label>
+                            <div className="space-y-2">
+                                <div className="text-xs text-slate-500">API Key</div>
+                                <input
+                                    type="password"
+                                    value={localKeys.anythingllm}
+                                    onChange={(e) => setLocalKeys(prev => ({ ...prev, anythingllm: e.target.value }))}
+                                    placeholder="API Key..."
+                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-purple-100 outline-none"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-xs text-slate-500">Endpoint</div>
+                                <input
+                                    type="text"
+                                    value={localEndpoints.anythingllm}
+                                    onChange={(e) => setLocalEndpoints(prev => ({ ...prev, anythingllm: e.target.value }))}
+                                    placeholder="http://localhost:3001"
+                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-purple-100 outline-none"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <div className="text-xs text-slate-500">模型选择</div>
+                                <select
+                                    value={localModels.anythingllm || 'inf_work'}
+                                    onChange={(e) => setLocalModels(prev => ({ ...prev, anythingllm: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-purple-100 outline-none appearance-none"
+                                >
+                                    <option value="inf_work">inf_work</option>
+                                    <option value="inf_knowledge">inf_knowledge</option>
+                                    <option value="inf_yc">inf_yc</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

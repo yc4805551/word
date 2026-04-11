@@ -203,10 +203,10 @@ export default function AIAssistantSidebar() {
         setIsAssociating(true);
         setAssociativeError(null);
         try {
-            const result = await generateAssociativeSuggestions(text, aiProvider, { 
-                apiKey: apiKeys[aiProvider],
-                endpoint: endpoints[aiProvider],
-                model: models[aiProvider] 
+            const result = await generateAssociativeSuggestions(text, 'anythingllm', { 
+                apiKey: apiKeys['anythingllm'],
+                endpoint: endpoints['anythingllm'],
+                model: models['anythingllm'] 
             });
             if (result) {
                 setAssociativeData(result);

@@ -222,13 +222,25 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                              (import.meta.env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free')}
                                         </span>
                                     </div>
-                                    <input
-                                        type="text"
-                                        value={localModels[aiProvider]}
-                                        onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
-                                        placeholder="例如: gpt-4-turbo"
-                                        className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
-                                    />
+                                     {aiProvider === 'anythingllm' ? (
+                                         <select
+                                             value={localModels[aiProvider] || 'inf_work'}
+                                             onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
+                                             className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none appearance-none"
+                                         >
+                                             <option value="inf_work">inf_work</option>
+                                             <option value="inf_knowledge">inf_knowledge</option>
+                                             <option value="inf_yc">inf_yc</option>
+                                         </select>
+                                     ) : (
+                                         <input
+                                             type="text"
+                                             value={localModels[aiProvider]}
+                                             onChange={(e) => setLocalModels(prev => ({ ...prev, [aiProvider]: e.target.value }))}
+                                             placeholder="例如: gpt-4-turbo"
+                                             className="w-full px-3 py-2 border border-slate-200 rounded text-sm bg-white focus:ring-2 focus:ring-blue-100 outline-none"
+                                         />
+                                     )}
                                 </div>
                             </div>
                         )}

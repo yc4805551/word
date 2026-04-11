@@ -451,9 +451,9 @@ export async function generateSmartWeek1Training(
             role: "system",
             content: `你是一个“拼音薄弱环节攻克”的训练设计师，专注于(in/ing, en/eng)。
 你需要输出严格JSON（json_object），包含：
-1) article：300-500字公文风格练习段落，要求自然、可打字。
-2) guidance：一段简短的训练指导（1-3句），解释本次训练重点。
-3) quizzes：8-10个拼音辨析题（针对in/ing或en/eng），每题都必须能归因到 finalPair。
+1) article：100字左右的短篇公文风格段落（严格控制在100字以内，切忌长篇大论）。
+2) guidance：一段简短的训练指导（1-2句），解释本次训练重点。
+3) quizzes：3-5个拼音辨析题（针对in/ing或en/eng），每题都必须能归因到 finalPair。
 
 quizzes 数组元素格式：
 {

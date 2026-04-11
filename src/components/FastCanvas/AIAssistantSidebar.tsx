@@ -431,13 +431,13 @@ export default function AIAssistantSidebar() {
                                         </div>
                                     </div>
                                 )}
-                                {associativeData.quotes && associativeData.quotes.length > 0 && (
+                                {associativeData.sentences && associativeData.sentences.length > 0 && (
                                     <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
                                         <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> 推荐素材名言
+                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> 推荐相关句式
                                         </div>
                                         <div className="space-y-2">
-                                            {associativeData.quotes.map((q, i) => (
+                                            {associativeData.sentences.map((q, i) => (
                                                 <div key={i} className="group relative pr-8">
                                                     <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">{q}</div>
                                                     <button 

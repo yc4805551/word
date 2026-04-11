@@ -124,7 +124,7 @@ function LeadParagraphTraining() {
 }
 
 function WinstonStarAnalyzer() {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -136,7 +136,7 @@ function WinstonStarAnalyzer() {
         setError('');
         setResult(null);
 
-        const res = await analyzeWinstonStar(text, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const res = await analyzeWinstonStar(text, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
         if (res) {
             setResult(res);
         } else {

@@ -27,7 +27,7 @@ export default function Week1() {
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Global Settings
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
 
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,7 +139,7 @@ export default function Week1() {
                     const latestMemory = loadWeek1Memory();
                     const preferPair = pickWeakPair(latestMemory);
                     const preferWords = getTopWrongWords(latestMemory, 10);
-                    const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] }, { preferPair, preferWords });
+                    const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }, { preferPair, preferWords });
                     if (seq !== fileLoadSeqRef.current) return;
                     setCustomQuizzes(quizzes);
                 } catch (error) {
@@ -157,14 +157,14 @@ export default function Week1() {
         if (!aiTopic.trim()) return;
         setIsGenerating(true);
         try {
-            const text = await generateText(aiTopic, aiProvider, { apiKey: apiKeys[aiProvider] });
+            const text = await generateText(aiTopic, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
             setCustomText(text);
             setSmartGuidance(null);
 
             // Generate quiz for the generated text
             const preferPair = pickWeakPair(week1Memory);
             const preferWords = getTopWrongWords(week1Memory, 10);
-            const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider] }, { preferPair, preferWords });
+            const quizzes = await generateQuiz(text, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }, { preferPair, preferWords });
             setCustomQuizzes(quizzes);
 
             setShowAiModal(false);
@@ -184,7 +184,7 @@ export default function Week1() {
             const training = await generateSmartWeek1Training(
                 { preferPair, preferWords, styleReference: currentLevel.content },
                 aiProvider,
-                { apiKey: apiKeys[aiProvider] }
+                { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
 
             if (!training || !training.article.trim() || training.quizzes.length === 0) {

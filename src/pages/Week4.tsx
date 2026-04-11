@@ -47,7 +47,7 @@ export default function Week4() {
 }
 
 function OutlineBuilder() {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const navigate = useNavigate();
     const [theme, setTheme] = useState('');
     const [type, setType] = useState('plan');
@@ -60,7 +60,7 @@ function OutlineBuilder() {
         setResult(null);
 
         const typeName = docTypes.find(t => t.id === type)?.name || type;
-        const res = await generateOutline(theme, typeName, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const res = await generateOutline(theme, typeName, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
         if (res) setResult(res);
         setLoading(false);
     };
@@ -169,7 +169,7 @@ function OutlineBuilder() {
 }
 
 function EvidenceVerifier() {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -181,7 +181,7 @@ function EvidenceVerifier() {
         setError('');
         setResult(null);
 
-        const res = await analyzeEvidence(text, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const res = await analyzeEvidence(text, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
         if (res) {
             setResult(res);
         } else {

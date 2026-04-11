@@ -41,7 +41,7 @@ export default function Week2() {
 }
 
 function SmartTraining() {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [topic, setTopic] = useState('');
     const [loading, setLoading] = useState(false);
     const [article, setArticle] = useState<string>('');
@@ -67,7 +67,7 @@ function SmartTraining() {
         setArticle('');
         setManualInput('');
 
-        const result = await generateArticle(topic, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const result = await generateArticle(topic, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
         if (result) {
             setArticle(result);
             setStep('selection');
@@ -79,7 +79,7 @@ function SmartTraining() {
     const handleAnalyze = async () => {
         const words = manualInput.split(/[,，\s\n]+/).filter(w => w.trim().length > 0);
         setLoading(true);
-        const result = await analyzeAndGeneratePractice(article, words, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const result = await analyzeAndGeneratePractice(article, words, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
         if (result) {
             setLesson(result);
             setStep('study');
@@ -860,7 +860,7 @@ function WordUpgrade() {
 }
 
 function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'usage' | 'elimination', onClose: () => void }) {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [data, setData] = useState<ScenarioPractice | null>(null);
     const [input, setInput] = useState('');
     const [status, setStatus] = useState<'testing' | 'success' | 'fail'>('testing');
@@ -873,7 +873,7 @@ function ScenarioPracticeModal({ word, mode, onClose }: { word: string, mode: 'u
         let cancelled = false;
         const fetchFunc = mode === 'usage' ? generateUsagePractice : generateScenarioPractice;
 
-        fetchFunc(word, aiProvider, { apiKey: apiKeys[aiProvider] }).then(res => {
+        fetchFunc(word, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }).then(res => {
             if (cancelled) return;
             setData(res);
             if (!res) setLoadError('生成失败，请检查网络或稍后重试。');

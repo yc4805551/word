@@ -53,7 +53,7 @@ export default function Week3() {
 }
 
 function StructureCloning() {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [customPatterns, setCustomPatterns] = useState<StructurePattern[]>([]); // Store imported patterns
     const [selectedPatternId, setSelectedPatternId] = useState(structurePatterns[0].id);
 
@@ -89,7 +89,7 @@ function StructureCloning() {
                 selectedPattern.template,
                 userDraft,
                 aiProvider,
-                { apiKey: apiKeys[aiProvider] }
+                { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
             if (res) {
                 setFeedback(res);
@@ -106,7 +106,7 @@ function StructureCloning() {
         try {
             // Import dynamically to avoid circular dependency issues if any
             const { extractStructureFromText } = await import('../lib/ai');
-            const newPatterns = await extractStructureFromText(importText, aiProvider, { apiKey: apiKeys[aiProvider] });
+            const newPatterns = await extractStructureFromText(importText, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
 
             if (newPatterns.length > 0) {
                 // Ensure IDs don't conflict
@@ -454,7 +454,7 @@ function StructureCloning() {
 }
 
 function LogicAmplifier() {
-    const { aiProvider, apiKeys } = useSettings();
+    const { aiProvider, apiKeys, endpoints, models } = useSettings();
     const [point, setPoint] = useState('');
     const [mode, setMode] = useState(logicModes[0].id);
     const [loading, setLoading] = useState(false);
@@ -470,7 +470,7 @@ function LogicAmplifier() {
         // @ts-ignore
         const instruction = selectedMode?.instruction;
 
-        const res = await expandLogic(point, selectedModeName, instruction, aiProvider, { apiKey: apiKeys[aiProvider] });
+        const res = await expandLogic(point, selectedModeName, instruction, aiProvider, { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] });
         if (res) setResult(res);
         setLoading(false);
     };

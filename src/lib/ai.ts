@@ -474,7 +474,8 @@ quizzes 数组元素格式：
         },
         {
             role: "user",
-            content: `优先考察：${preferPair ?? '自动'}
+            content: `核心考察（占比70%）：${preferPair ?? '自动'}
+辅助考察（占比30%）：${preferPair === 'in/ing' ? 'en/eng' : 'in/ing'}
 常错词：${preferWords.length ? JSON.stringify(preferWords) : '无'}
 风格参考（可为空）：
 ${styleReference ? styleReference.slice(0, 800) : '无'}`

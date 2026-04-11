@@ -1153,6 +1153,13 @@ export async function generateAssociativeSuggestions(
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
+        if (content && content.includes("There is no relevant information")) {
+            return {
+                directions: ["未能在当前专属文献库中完全匹配该业务内容。"],
+                vocabulary: ["暂无匹配推荐"],
+                quotes: ["（库中暂无相关指导文本，请继续书写）"]
+            };
+        }
         return content ? safeJsonParse<AssociativeSuggestion>(content) : null;
     } catch { return null; }
 }

@@ -60,7 +60,6 @@ export default function AIAssistantSidebar() {
     const [associativeData, setAssociativeData] = useState<AssociativeSuggestion | null>(null);
     const [isAssociating, setIsAssociating] = useState(false);
     const [associativeError, setAssociativeError] = useState<string | null>(null);
-    const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [chatInput, setChatInput] = useState('');
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([

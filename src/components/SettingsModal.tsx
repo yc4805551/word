@@ -45,8 +45,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+            <div className="bg-white rounded-xl shadow-2xl resize overflow-auto flex flex-col w-[450px] min-w-[320px] max-w-[95vw] min-h-[400px] max-h-[95vh] animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex-shrink-0 px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
                         <Settings className="w-5 h-5 text-blue-600" />
                         系统设置
@@ -56,7 +56,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </button>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="flex-1 p-6 space-y-6 overflow-y-auto">
                     {/* Provider Selection Grouped */}
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">选择模型分类</label>
@@ -247,7 +247,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </div>
                 </div>
 
-                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+                <div className="flex-shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
                     <button
                         onClick={handleSave}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-lg shadow-blue-200 flex items-center gap-2"

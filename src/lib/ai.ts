@@ -468,9 +468,9 @@ quizzes 数组元素格式：
 }
 
 约束：
-- 严格排除 an/ang。
-- article 中尽量多出现 preferPair 对应词（弱项密集但要自然）。
-- preferWords 若能自然融入 article 或 quizzes，请优先覆盖。`
+- 严格排除 an/ang 干扰词。
+- article 中必须引入大量**变化丰富的、不重复的** preferPair 对应词汇（大幅提升 in/ing 和 en/eng 的词汇多样性，拓展用户的拼音词库，不要每次都使用同样的单词）。
+- preferWords 是用户的历史常错词，可以在自然的情况下选用其中 1-2 个，但**绝不要**把语料库全压在这些旧词上，重点是生成大量新的同韵母高级公文词汇。`
         },
         {
             role: "user",

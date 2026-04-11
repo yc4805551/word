@@ -213,9 +213,9 @@ export default function AIAssistantSidebar() {
             } else {
                 setAssociativeError('无法获取联想数据，请检查 API 配置。');
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error("AI Association failed", e);
-            setAssociativeError('获取联想数据的过程中发生错误。');
+            setAssociativeError(`错误: ${e.message || '未知异常'}`);
         } finally {
             setIsAssociating(false);
         }

@@ -1161,5 +1161,5 @@ export async function generateAssociativeSuggestions(
             };
         }
         return content ? safeJsonParse<AssociativeSuggestion>(content) : null;
-    } catch { return null; }
+    } catch (e) { throw e; }
 }

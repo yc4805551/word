@@ -187,10 +187,8 @@ export default function Week1() {
                 { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
 
-            if (!training || !training.article.trim() || training.quizzes.length === 0) {
-                alert("生成失败，请重试");
-                return;
-            }
+            if (!training) return; // Should not happen with new throw logic
+
             setCustomText(training.article);
             setCustomQuizzes(training.quizzes);
             setSmartGuidance(training.guidance || null);

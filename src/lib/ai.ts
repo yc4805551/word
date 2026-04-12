@@ -440,7 +440,9 @@ export async function generateSmartWeek1Training(
     overrides?: { apiKey?: string; endpoint?: string; model?: string }
 ): Promise<SmartWeek1Training | null> {
     const config = getAIConfig(provider, overrides);
-    if (!normalizeApiKey(config.apiKey)) return null;
+    if (!normalizeApiKey(config.apiKey)) {
+        throw new Error(`未配置 ${provider} 的 API Key，请在“系统设置”中填写。`);
+    }
 
     const preferPair = input.preferPair;
     const preferWords = Array.isArray(input.preferWords) ? input.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
@@ -468,9 +470,11 @@ quizzes 数组元素格式：
 }
 
 约束：
-- 严格排除 an/ang 干扰词。
-- article 中必须按约 50:50 的比例，双管齐下地引入大量**变化丰富的、不重复的**核心考察拼音和辅助考察拼音的词汇。
-- preferWords 是用户的历史易错词，请在自然的情况下仅仅选用其中 1-2 个。千万不要全盘复用旧词，必须强迫引入大量**全新**的同韵母高级词汇以拓展用户的拼音词库。`
+- 严格排除 an/ang 干扰项。
+- article **必须控制在 100 字以内**，短小精悍。
+- **词汇多样性要求（核心）**：请双管齐下地引入大量**从未出现过的新鲜、地道公文词汇**（in/ing 和 en/eng 对半开）。
+- **杜绝循环**：千万不要局限于用户提供的常错词（常错词仅需自然融入 1-2 个），重点是挖掘新词，如“循序渐进、相得益彰、精益求精、频频、纷纷、真正、深沉、振奋”等。
+- 保证返回的是纯净的 JSON 字符串。`
         },
         {
             role: "user",
@@ -484,12 +488,22 @@ ${styleReference ? styleReference.slice(0, 800) : '无'}`
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
-        if (!content) return null;
+        if (!content) throw new Error("AI 返回了空消息，请重试。");
+        
         const parsed = safeJsonParse<SmartWeek1Training>(content);
-        if (!parsed || typeof parsed.article !== 'string' || !Array.isArray(parsed.quizzes) || typeof parsed.guidance !== 'string') return null;
+        if (!parsed) {
+            console.error("JSON 解析失败，原始数据:", content);
+            throw new Error("AI 生成的内容格式错误，无法解析。");
+        }
+        
+        if (typeof parsed.article !== 'string' || !Array.isArray(parsed.quizzes)) {
+            throw new Error("AI 生成的数据字段缺失。");
+        }
+        
         return parsed;
-    } catch {
-        return null;
+    } catch (e) {
+        if (e instanceof Error) throw e;
+        throw new Error(String(e));
     }
 }
 

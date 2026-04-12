@@ -7,9 +7,9 @@ export interface AIConfig {
 }
 
 export function getAIConfig(
-    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', 
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
     overrides?: { apiKey?: string; endpoint?: string; model?: string }
-) : AIConfig {
+): AIConfig {
     const env = import.meta.env;
 
     // Helper to ensure endpoint ends with /chat/completions
@@ -453,7 +453,7 @@ export async function generateSmartWeek1Training(
             role: "system",
             content: `你是一个“拼音薄弱环节攻克”的训练设计师，专注于(in/ing, en/eng)。
 你需要输出严格JSON（json_object），包含：
-1) article：100字左右的短篇公文风格段落（严格控制在100字以内，切忌长篇大论）。
+1) article：100字左右的短篇公文风格段落（严格控制在100字以内，专注于(in/ing, en/eng)训练）。
 2) guidance：一段简短的训练指导（1-2句），解释本次训练重点。
 3) quizzes：3-5个拼音辨析题（针对in/ing或en/eng），每题都必须能归因到 finalPair。
 
@@ -489,17 +489,17 @@ ${styleReference ? styleReference.slice(0, 800) : '无'}`
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
         if (!content) throw new Error("AI 返回了空消息，请重试。");
-        
+
         const parsed = safeJsonParse<SmartWeek1Training>(content);
         if (!parsed) {
             console.error("JSON 解析失败，原始数据:", content);
             throw new Error("AI 生成的内容格式错误，无法解析。");
         }
-        
+
         if (typeof parsed.article !== 'string' || !Array.isArray(parsed.quizzes)) {
             throw new Error("AI 生成的数据字段缺失。");
         }
-        
+
         return parsed;
     } catch (e) {
         if (e instanceof Error) throw e;
@@ -902,8 +902,8 @@ export interface EvidenceCheckResult {
 }
 
 export async function analyzeEvidence(
-    text: string, 
-    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', 
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
     overrides?: { apiKey?: string; endpoint?: string; model?: string }
 ): Promise<EvidenceCheckResult | null> {
     const config = getAIConfig(provider, overrides);
@@ -1056,8 +1056,8 @@ export async function chatWithDocument(
     if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
 
     const messages: ChatMessage[] = [
-        { 
-            role: "system", 
+        {
+            role: "system",
             content: `你是一个专业的公文写作助手。以下是用户正在编辑的文档内容：
 ---
 ${documentContext.slice(0, 10000)}
@@ -1100,8 +1100,8 @@ export async function deepAuditDocument(
     if (!normalizeApiKey(config.apiKey)) return null;
 
     const messages: ChatMessage[] = [
-        { 
-            role: "system", 
+        {
+            role: "system",
             content: `你是一个极其严苛且专业的公文审计专家。请从以下五个维度对文本进行深度诊断并打分：
 1. **逻辑结构 (Logic)**：核心观点是否突出，论证是否严密。
 2. **格式规范 (Format)**：是否符合政府公文行文习惯与排版逻辑。

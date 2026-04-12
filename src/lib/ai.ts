@@ -108,7 +108,11 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | un
     const onAbort = () => controller.abort();
     parentSignal?.addEventListener('abort', onAbort, { once: true });
 
-    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    const timer = window.setTimeout(() => {
+        const error = new Error(`请求超时 (${timeoutMs/1000}秒)，请检查网络或尝试简化要求。`);
+        error.name = 'TimeoutError';
+        controller.abort(error);
+    }, timeoutMs);
     try {
         return await fetch(input, { ...init, signal: controller.signal });
     } finally {
@@ -202,7 +206,7 @@ async function callChatCompletion(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        }, 60_000);
+        }, 90_000);
 
         if (!response.ok) {
             const errText = await response.text();
@@ -232,7 +236,7 @@ async function callChatCompletion(
                 'Authorization': `Bearer ${config.apiKey}`,
             },
             body: JSON.stringify(payload),
-        }, 60_000);
+        }, 90_000);
 
         if (!response.ok) {
             const errText = await response.text();

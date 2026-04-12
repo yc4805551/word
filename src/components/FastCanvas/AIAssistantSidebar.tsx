@@ -203,10 +203,10 @@ export default function AIAssistantSidebar() {
         setIsAssociating(true);
         setAssociativeError(null);
         try {
-            const result = await generateAssociativeSuggestions(text, 'anythingllm', { 
-                apiKey: apiKeys['anythingllm'],
-                endpoint: endpoints['anythingllm'],
-                model: models['anythingllm'] 
+            const result = await generateAssociativeSuggestions(text, aiProvider, { 
+                apiKey: apiKeys[aiProvider],
+                endpoint: endpoints[aiProvider],
+                model: models[aiProvider] 
             });
             if (result) {
                 setAssociativeData(result);
@@ -226,25 +226,25 @@ export default function AIAssistantSidebar() {
         editor.chain().focus().insertContent(text).run();
     };
 
-    const handleSendMessage = async () => {
-        if (!chatInput.trim() || !editor || isChatLoading) return;
-
-        const userMsg: ChatMessage = { role: 'user', content: chatInput };
+    const sendChatMessage = async (msgText: string) => {
+        if (!editor || isChatLoading) return;
+        
+        const userMsg: ChatMessage = { role: 'user', content: msgText };
         setChatHistory(prev => [...prev, userMsg]);
-        setChatInput('');
         setIsChatLoading(true);
+        if (mode !== 'chat') setMode('chat');
 
         try {
             const documentContext = editor.getText();
-            // Pass the updated history including the current user message
+            const p = 'anythingllm'; // 默认写作问答使用知识库
             const response = await chatWithDocument(
                 [...chatHistory, userMsg], 
                 documentContext, 
-                aiProvider, 
+                p, 
                 { 
-                    apiKey: apiKeys[aiProvider], 
-                    endpoint: endpoints[aiProvider],
-                    model: models[aiProvider] 
+                    apiKey: apiKeys[p], 
+                    endpoint: endpoints[p],
+                    model: models[p] 
                 }
             );
             
@@ -258,6 +258,17 @@ export default function AIAssistantSidebar() {
         } finally {
             setIsChatLoading(false);
         }
+    };
+
+    const handleSendMessage = async () => {
+        if (!chatInput.trim()) return;
+        const text = chatInput;
+        setChatInput('');
+        await sendChatMessage(text);
+    };
+
+    const handleAskConcept = (concept: string) => {
+        sendChatMessage(`请解释：“${concept}”`);
     };
 
     return (
@@ -419,14 +430,22 @@ export default function AIAssistantSidebar() {
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             {associativeData.vocabulary.map((v, i) => (
-                                                <button 
-                                                    key={i} 
-                                                    onClick={() => handleInsertText(v)}
-                                                    className="text-xs bg-slate-50 border border-slate-200 text-slate-700 px-2 py-1 rounded hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors"
-                                                    title="点击插入光标处"
-                                                >
-                                                    {v}
-                                                </button>
+                                                <div key={i} className="group relative flex rounded overflow-hidden border border-slate-200 hover:border-green-300 transition-colors">
+                                                    <button 
+                                                        onClick={() => handleInsertText(v)}
+                                                        className="text-xs bg-slate-50 text-slate-700 px-2 py-1 outline-none hover:bg-green-50 hover:text-green-700"
+                                                        title="点击插入光标处"
+                                                    >
+                                                        {v}
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleAskConcept(v)}
+                                                        className="text-xs bg-slate-100 text-slate-500 px-1.5 py-1 hover:bg-blue-100 hover:text-blue-700 border-l border-slate-200"
+                                                        title="向私有知识库提问此内容"
+                                                    >
+                                                        <Bot className="w-3 h-3" />
+                                                    </button>
+                                                </div>
                                             ))}
                                         </div>
                                     </div>
@@ -438,15 +457,24 @@ export default function AIAssistantSidebar() {
                                         </div>
                                         <div className="space-y-2">
                                             {associativeData.sentences.map((q, i) => (
-                                                <div key={i} className="group relative pr-8">
+                                                <div key={i} className="group relative pr-14">
                                                     <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">{q}</div>
-                                                    <button 
-                                                        onClick={() => handleInsertText(q)}
-                                                        className="absolute right-1 top-1 bottom-1 px-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-all flex justify-center items-center"
-                                                        title="点击插入"
-                                                    >
-                                                        <Check className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    <div className="absolute right-1 top-1 bottom-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all items-center bg-gradient-to-l from-slate-50 via-slate-50 pl-2">
+                                                        <button 
+                                                            onClick={() => handleAskConcept(q)}
+                                                            className="px-1.5 py-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded flex justify-center items-center"
+                                                            title="向私有知识库提问此内容"
+                                                        >
+                                                            <Bot className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleInsertText(q)}
+                                                            className="px-1.5 py-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex justify-center items-center"
+                                                            title="点击插入"
+                                                        >
+                                                            <Check className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

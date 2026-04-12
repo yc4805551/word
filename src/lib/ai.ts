@@ -469,13 +469,13 @@ quizzes 数组元素格式：
 
 约束：
 - 严格排除 an/ang 干扰词。
-- article 中必须引入大量**变化丰富的、不重复的** preferPair 对应词汇（大幅提升 in/ing 和 en/eng 的词汇多样性，拓展用户的拼音词库，不要每次都使用同样的单词）。
-- preferWords 是用户的历史常错词，可以在自然的情况下选用其中 1-2 个，但**绝不要**把语料库全压在这些旧词上，重点是生成大量新的同韵母高级公文词汇。`
+- article 中必须按约 50:50 的比例，双管齐下地引入大量**变化丰富的、不重复的**核心考察拼音和辅助考察拼音的词汇。
+- preferWords 是用户的历史易错词，请在自然的情况下仅仅选用其中 1-2 个。千万不要全盘复用旧词，必须强迫引入大量**全新**的同韵母高级词汇以拓展用户的拼音词库。`
         },
         {
             role: "user",
-            content: `核心考察（占比70%）：${preferPair ?? '自动'}
-辅助考察（占比30%）：${preferPair === 'in/ing' ? 'en/eng' : 'in/ing'}
+            content: `核心考察（占比50%）：${preferPair ?? '自动'} （重点引入未测过的新鲜词汇）
+辅助考察（占比50%）：${preferPair === 'in/ing' ? 'en/eng' : 'in/ing'} （强制混入并引入新鲜词汇）
 常错词：${preferWords.length ? JSON.stringify(preferWords) : '无'}
 风格参考（可为空）：
 ${styleReference ? styleReference.slice(0, 800) : '无'}`

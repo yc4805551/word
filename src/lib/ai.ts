@@ -267,7 +267,7 @@ export async function interactivePolish(
 
     try {
         const text = await callChatCompletion(history, config, undefined);
-        if (!text) return { success: false, error: "Empty response" };
+        if (!text) return { success: false, error: "AI 响应为空，请重试。" };
         return { success: true, data: text };
     } catch (e) {
         const msg = getErrorMessage(e);
@@ -396,7 +396,7 @@ export async function generatePinyinQuiz(
                     "focus": "易混字（如：深）",
                     "options": { "A": "shēn (前)", "B": "shēng (后)" },
                     "correct": "A",
-                    "note": "深化，Meaning 'deepen', uses front nasal sound.",
+                    "note": "‘深化’中的‘深’是前鼻音。",
                     "finalPair": "in/ing 或 en/eng（必填）",
                     "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
                     "correctFinal": "in/ing/en/eng 之一（必填）"
@@ -895,10 +895,10 @@ export interface EvidenceCheckResult {
     original_text: string;
     claims: Array<{
         segment: string;
-        issue: string; // e.g. "Lacks data", "Vague assertion"
-        suggestion: string; // e.g. "Add specific sales figures", "Cite a report"
+        issue: string; // 例如：“缺乏数据支撑”、“论断过于主观”
+        suggestion: string; // 例如：“请补充具体的增长数据”、“建议引用权威报告”
     }>;
-    overall_score: number; // 0-100 authenticity/rigor score
+    overall_score: number; // 0-100 严谨度评分
 }
 
 export async function analyzeEvidence(
@@ -1001,7 +1001,7 @@ export interface AuthenticityResult {
     score: number; // 0-100 (100 = Very Real/Authentic, 0 = Full of Jargon/BS)
     issues: Array<{
         segment: string;
-        type: 'cliche' | 'jargon' | 'empty';
+        type: 'cliche' | 'jargon' | 'empty'; // 陈词滥调 | 堆砌行话 | 空洞废话
         suggestion: string;
     }>;
     comment: string;
@@ -1168,11 +1168,11 @@ export async function generateAssociativeSuggestions(
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
-        if (content && content.includes("There is no relevant information")) {
+        if (content && (content.includes("There is no relevant information") || content.includes("未能在当前专属文献库中完全匹配"))) {
             return {
-                directions: ["未能在当前专属文献库中完全匹配该业务内容。"],
+                directions: ["未能在当前专属文献库中检索到完全匹配的业务内容。"],
                 vocabulary: ["暂无匹配推荐"],
-                sentences: ["（库中暂无相关指导文本，请继续书写）"]
+                sentences: ["（本地知识库中暂无相关指导文本，请继续书写并触发联想）"]
             };
         }
         return content ? safeJsonParse<AssociativeSuggestion>(content) : null;

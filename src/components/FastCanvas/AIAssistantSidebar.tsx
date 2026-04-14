@@ -265,20 +265,33 @@ export default function AIAssistantSidebar() {
         setIsChatLoading(true);
         if (mode !== 'chat') setMode('chat');
 
+        // 知识库无匹配时的降级标识
+        const isKbFallback = (text: string) =>
+            text.includes('There is no relevant information') ||
+            text.includes('未能在当前专属文献库中完全匹配');
+
         try {
             const documentContext = editor.getText();
-            const p = 'anythingllm'; // 默认写作问答使用知识库
-            const response = await chatWithDocument(
-                [...chatHistory, userMsg], 
-                documentContext, 
-                p, 
-                { 
-                    apiKey: apiKeys[p], 
-                    endpoint: endpoints[p],
-                    model: models[p] 
-                }
+            const fullHistory = [...chatHistory, userMsg];
+
+            // 第一步：优先问知识库（anythingllm）
+            let response = await chatWithDocument(
+                fullHistory,
+                documentContext,
+                'anythingllm',
+                { apiKey: apiKeys['anythingllm'], endpoint: endpoints['anythingllm'], model: models['anythingllm'] }
             );
-            
+
+            // 第二步：知识库无匹配时，自动降级到主要 AI
+            if (response.success && response.data && isKbFallback(response.data)) {
+                response = await chatWithDocument(
+                    fullHistory,
+                    documentContext,
+                    aiProvider,
+                    { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
+                );
+            }
+
             if (response.success && response.data) {
                 setChatHistory(prev => [...prev, { role: 'assistant', content: response.data! }]);
             } else {
@@ -290,6 +303,7 @@ export default function AIAssistantSidebar() {
             setIsChatLoading(false);
         }
     };
+
 
     const handleSendMessage = async () => {
         if (!chatInput.trim()) return;

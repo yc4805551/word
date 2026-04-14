@@ -2,10 +2,37 @@ import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb } from 'lucide-react';
 import { polishText, chatWithDocument, generateAssociativeSuggestions, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
+
 import { useSettings } from '../../context/SettingsContext';
 import ReactMarkdown from 'react-markdown';
 
+// 把句子中的 【关键词】 渲染成高亮可点击的 chip
+function SentenceWithHighlights({ text, onKeywordClick }: { text: string; onKeywordClick: (word: string) => void }) {
+    const parts = text.split(/(【[^】]+】)/g);
+    return (
+        <span>
+            {parts.map((part, i) => {
+                const match = part.match(/^【(.+)】$/);
+                if (match) {
+                    return (
+                        <button
+                            key={i}
+                            onClick={(e) => { e.stopPropagation(); onKeywordClick(match[1]); }}
+                            className="inline-flex items-center font-semibold text-blue-700 bg-blue-50 px-1 rounded hover:bg-blue-100 transition-colors cursor-pointer mx-0.5 text-[11px]"
+                            title={`点击插入"${match[1]}"到光标处`}
+                        >
+                            {match[1]}
+                        </button>
+                    );
+                }
+                return <span key={i}>{part}</span>;
+            })}
+        </span>
+    );
+}
+
 function ChatMessageItem({ msg }: { msg: ChatMessage }) {
+
     const [isExpanded, setIsExpanded] = useState(false);
     const isLong = msg.role === 'assistant' && msg.content.length > 300;
 
@@ -201,15 +228,18 @@ export default function AIAssistantSidebar() {
         if (!text.trim()) return;
 
         setIsAssociating(true);
+        setAssociativeData(null);
         setAssociativeError(null);
         try {
-            const result = await generateAssociativeSuggestions(text, aiProvider, { 
-                apiKey: apiKeys[aiProvider],
-                endpoint: endpoints[aiProvider],
-                model: models[aiProvider] 
-            });
+            const result = await generateAssociativeSuggestions(
+                text,
+                aiProvider,
+                { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] },
+                // onPartialResult：请求 A 完成后立即更新 UI，不等 B
+                (partial) => setAssociativeData(partial)
+            );
             if (result) {
-                setAssociativeData(result);
+                setAssociativeData(result); // 最终合并 A+B
             } else {
                 setAssociativeError('无法获取联想数据，请检查 API 配置。');
             }
@@ -220,6 +250,7 @@ export default function AIAssistantSidebar() {
             setIsAssociating(false);
         }
     }, [editor, aiProvider, apiKeys, endpoints, models]);
+
 
     const handleInsertText = (text: string) => {
         if (!editor) return;
@@ -409,8 +440,9 @@ export default function AIAssistantSidebar() {
                                 </button>
                             </div>
                         )}
-                        {associativeData && !isAssociating && (
-                            <div className="space-y-4">
+                        {associativeData && (
+                            <div className="space-y-3">
+                                {/* 思路引领 */}
                                 {associativeData.directions && associativeData.directions.length > 0 && (
                                     <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
                                         <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
@@ -423,54 +455,38 @@ export default function AIAssistantSidebar() {
                                         </ul>
                                     </div>
                                 )}
-                                {associativeData.vocabulary && associativeData.vocabulary.length > 0 && (
-                                    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
-                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> 推荐高级词汇
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {associativeData.vocabulary.map((v, i) => (
-                                                <div key={i} className="group relative flex rounded overflow-hidden border border-slate-200 hover:border-green-300 transition-colors">
-                                                    <button 
-                                                        onClick={() => handleInsertText(v)}
-                                                        className="text-xs bg-slate-50 text-slate-700 px-2 py-1 outline-none hover:bg-green-50 hover:text-green-700"
-                                                        title="点击插入光标处"
-                                                    >
-                                                        {v}
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleAskConcept(v)}
-                                                        className="text-xs bg-slate-100 text-slate-500 px-1.5 py-1 hover:bg-blue-100 hover:text-blue-700 border-l border-slate-200"
-                                                        title="向私有知识库提问此内容"
-                                                    >
-                                                        <Bot className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                {/* 句子列表（含内联高亮词，词语在句子语境中学习） */}
                                 {associativeData.sentences && associativeData.sentences.length > 0 && (
                                     <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm space-y-2">
-                                        <div className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span> 推荐相关句式
+                                        <div className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                                            <span className="flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                                推荐句式
+                                                <span className="text-slate-400 font-normal ml-1">· 点击蓝色词可单独插入</span>
+                                            </span>
+                                            <span className="text-slate-400 font-normal">{associativeData.sentences.length} 条</span>
                                         </div>
-                                        <div className="space-y-2">
-                                            {associativeData.sentences.map((q, i) => (
+                                        <div className="space-y-1.5">
+                                            {associativeData.sentences.map((s, i) => (
                                                 <div key={i} className="group relative pr-14">
-                                                    <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">{q}</div>
+                                                    <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">
+                                                        <SentenceWithHighlights
+                                                            text={s.text}
+                                                            onKeywordClick={(word) => handleInsertText(word)}
+                                                        />
+                                                    </div>
                                                     <div className="absolute right-1 top-1 bottom-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all items-center bg-gradient-to-l from-slate-50 via-slate-50 pl-2">
-                                                        <button 
-                                                            onClick={() => handleAskConcept(q)}
+                                                        <button
+                                                            onClick={() => handleAskConcept(s.text)}
                                                             className="px-1.5 py-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded flex justify-center items-center"
-                                                            title="向私有知识库提问此内容"
+                                                            title="向知识库提问"
                                                         >
                                                             <Bot className="w-3.5 h-3.5" />
                                                         </button>
-                                                        <button 
-                                                            onClick={() => handleInsertText(q)}
+                                                        <button
+                                                            onClick={() => handleInsertText(s.text.replace(/【|】/g, ''))}
                                                             className="px-1.5 py-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex justify-center items-center"
-                                                            title="点击插入"
+                                                            title="插入整句（自动去除标注符号）"
                                                         >
                                                             <Check className="w-3.5 h-3.5" />
                                                         </button>
@@ -478,10 +494,18 @@ export default function AIAssistantSidebar() {
                                                 </div>
                                             ))}
                                         </div>
+                                        {/* 后台正在加载第二批时的提示 */}
+                                        {isAssociating && (
+                                            <div className="flex items-center gap-1.5 text-xs text-slate-400 pt-1 border-t border-slate-100">
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                正在加载更多句子...
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         )}
+
                     </div>
                 )}
 

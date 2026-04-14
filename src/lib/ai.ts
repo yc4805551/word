@@ -455,56 +455,20 @@ export async function generateSmartWeek1Training(
     const messages: ChatMessage[] = [
         {
             role: "system",
-            content: `你是一个“拼音薄弱环节攻克”的训练设计师，专注于(in/ing, en/eng)。
-你需要输出严格JSON（json_object），包含：
-1) article：100字左右的短篇公文风格段落（严格控制在100字以内，专注于(in/ing, en/eng)训练）。
-2) guidance：一段简短的训练指导（1-2句），解释本次训练重点。
-3) quizzes：3-5个拼音辨析题（针对in/ing或en/eng），每题都必须能归因到 finalPair。
+            content: `你是汉语拼音训练设计师，专注前后鼻音(in/ing, en/eng)辨析。生成一个JSON对象，包含三个字段：
+- article：120字左右的公文风格短段落，自然融入 in/ing 和 en/eng 词汇。
+- guidance：1句话说明本次训练重点。
+- quizzes：4个前后鼻音辨析题数组。
 
-quizzes 数组元素格式：
-{
-  "word": "词语",
-  "focus": "易混字",
-  "options": { "A": "带声调拼音 + (前/后) 标注", "B": "带声调拼音 + (前/后) 标注" },
-  "correct": "A 或 B",
-  "note": "可选：简短提示",
-  "finalPair": "in/ing 或 en/eng（必填）",
-  "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
-  "correctFinal": "in/ing/en/eng 之一（必填）"
-}
+每道题格式：{"word":"词语","focus":"易混字","options":{"A":"正确拼音(前/后)","B":"错误拼音(前/后)"},"correct":"A或B","finalPair":"in/ing或en/eng","optionFinals":{"A":"in/ing/en/eng","B":"in/ing/en/eng"},"correctFinal":"in/ing/en/eng"}
 
-约束：
-- 严格排除 an/ang 干扰项。
-- article **控制在 100-150 字以内**，短小精悍，语气自然。
-- **词汇多样性**：必须混合使用 in/ing 和 en/eng 的新鲜公文词汇。
-- **杜绝循环**：不要复读旧词，重点挖掘全新公文高级词汇。
-- 必须返回纯净且合法的 JSON，如下所示：
-
-示例输出格式：
-{
-  "article": "我们在推进工作的过程中，必须循序渐进，真正做到精益求精...",
-  "guidance": "本次训练重点在于区分推进(in)与真正(ing)的前后鼻音。",
-  "quizzes": [
-    {
-      "word": "推进",
-      "focus": "推",
-      "options": { "A": "tīn (前)", "B": "tīng (后)" },
-      "correct": "A",
-      "finalPair": "in/ing",
-      "optionFinals": { "A": "in", "B": "ing" },
-      "correctFinal": "in"
-    }
-  ]
-}
-`
+注意：只用 in/ing/en/eng 韵母，禁止 an/ang，词语必须是常见公文词语，只返回JSON对象。`
         },
         {
             role: "user",
-            content: `核心考察（占比50%）：${preferPair ?? '自动'} （重点引入未测过的新鲜词汇）
-辅助考察（占比50%）：${preferPair === 'in/ing' ? 'en/eng' : 'in/ing'} （强制混入并引入新鲜词汇）
-常错词：${preferWords.length ? JSON.stringify(preferWords) : '无'}
-风格参考（可为空）：
-${styleReference ? styleReference.slice(0, 800) : '无'}`
+            content: `重点考察：${preferPair ?? 'in/ing和en/eng各半'}
+常错词（尽量覆盖）：${preferWords.length ? preferWords.join('、') : '无'}
+风格参考：${styleReference ? styleReference.slice(0, 500) : '无'}`
         }
     ];
 
@@ -1156,48 +1120,117 @@ export async function deepAuditDocument(
 }
 
 
+export interface AssociativeSentence {
+    text: string;       // 完整句子，含【关键词】标记
+    keywords: string[]; // 从 text 中提取的关键词，供单独点击插入
+}
+
 export interface AssociativeSuggestion {
     directions: string[];
-    vocabulary: string[];
-    sentences: string[];
+    sentences: AssociativeSentence[];
+}
+
+// 解析可能带有 【词】 标记的句子（兼容纯字符串旧格式）
+function normalizeAssociativeSentence(raw: unknown): AssociativeSentence | null {
+    if (typeof raw === 'string') {
+        const keywords = [...raw.matchAll(/【([^】]+)】/g)].map(m => m[1]);
+        return { text: raw, keywords };
+    }
+    if (isObject(raw) && typeof raw.text === 'string') {
+        const keywords = Array.isArray(raw.keywords)
+            ? raw.keywords.filter((k): k is string => typeof k === 'string')
+            : [...raw.text.matchAll(/【([^】]+)】/g)].map(m => m[1]);
+        return { text: raw.text, keywords };
+    }
+    return null;
+}
+
+function normalizeAssociativeResult(raw: unknown): AssociativeSuggestion | null {
+    if (!isObject(raw)) return null;
+    const directions = Array.isArray(raw.directions)
+        ? raw.directions.filter((d): d is string => typeof d === 'string')
+        : [];
+    const sentencesRaw = Array.isArray(raw.sentences) ? raw.sentences : [];
+    const sentences = sentencesRaw.map(normalizeAssociativeSentence).filter((s): s is AssociativeSentence => s !== null);
+    if (directions.length === 0 && sentences.length === 0) return null;
+    return { directions, sentences };
+}
+
+// 构建联想灵感 prompt（可选：是否包含 directions）
+function buildAssociativeMessages(textContext: string, includeDirections: boolean, sentenceCount: number): ChatMessage[] {
+    const snippet = textContext.slice(-800);
+    const systemContent = includeDirections
+        ? `你是公文写作助手，帮助用户在写作卡壳时继续下去。根据用户当前内容返回JSON对象，包含两个字段：
+
+directions：2-3条接下来可以写的方向，每条不超过20字，帮助用户理清下一步思路。
+
+sentences：${sentenceCount}条可直接参考或插入的公文句子，要求：
+- 每条句子自然流畅，契合当前话题，句子尽量完整有力
+- 每条句子中把 1-2 个高级词汇或核心表达用【】标注，例如：在推进【数字化转型】的过程中，要【统筹兼顾】多方诉求
+- 【】内的词要有学习价值（四字成语、专业术语、高频公文词组优先）
+- 每条 sentences 元素格式：{"text": "含【词】的句子", "keywords": ["词1", "词2"]}
+
+只返回JSON，格式：
+{"directions": ["方向1", "方向2"], "sentences": [{"text": "...", "keywords": [...]}, ...]}\``
+        : `你是公文写作助手。根据用户当前内容，续写${sentenceCount}条公文句子，要求：
+- 每条自然流畅，契合当前话题，句子尽量完整有力
+- 每条把 1-2 个高级词汇用【】标注，例如：坚持【问题导向】，持续深化【改革攻坚】
+- 每条格式：{"text": "含【词】的句子", "keywords": ["词1", "词2"]}
+
+只返回JSON，格式：{"sentences": [{"text": "...", "keywords": [...]}, ...]}\``;
+
+    return [
+        { role: "system", content: systemContent },
+        { role: "user", content: `当前写作内容：\n\n${snippet}` }
+    ];
 }
 
 export async function generateAssociativeSuggestions(
     textContext: string,
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'anythingllm',
-    overrides?: { apiKey?: string; endpoint?: string; model?: string }
+    overrides?: { apiKey?: string; endpoint?: string; model?: string },
+    onPartialResult?: (partial: AssociativeSuggestion) => void
 ): Promise<AssociativeSuggestion | null> {
     const config = getAIConfig(provider, overrides);
-    if (!normalizeApiKey(config.apiKey) && provider !== 'anythingllm') return null; // AnythingLLM might be local without apiKey
+    if (!normalizeApiKey(config.apiKey) && provider !== 'anythingllm') return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个智能公文写作辅助助手。用户正在撰写公文（或者打字练习），由于遇到了瓶颈或者需要灵感，向你请求“联想数据”。
-请阅读用户目前写下的内容，并返回JSON：
-1. "directions": 提供 2-3 条接下来可以继续写的内容方向（如“补充背景说明”、“提出具体举措”、“强调预期成果”），每条方向保持在20个字以内。
-2. "vocabulary": 推荐 4-6 个非常契合当前语境的高级公文词汇或四字成语，供用户直接点选插入。
-3. "sentences": 推荐 8 个符合当前主题的相关公文句式或金句，供用户参考或直接使用。
+    // 请求 A：优先，包含 directions + 前 7 条句子
+    const messagesA = buildAssociativeMessages(textContext, true, 7);
+    // 请求 B：后台，仅 8 条补充句子（prompt 更短，更快）
+    const messagesB = buildAssociativeMessages(textContext, false, 8);
 
-返回格式必须是严格的JSON格式：
-{
-  "directions": ["方向1", "方向2"],
-  "vocabulary": ["词汇1", "词汇2"],
-  "sentences": ["相关句式1", "相关句式2", "相关句式3", "相关句式4", "相关句式5", "相关句式6", "相关句式7", "相关句式8"]
-}`
-        },
-        { role: "user", content: `当前写作内容如下：\n\n${textContext.slice(-1000)}` }
-    ];
+    // 同时发出两个请求
+    const promiseA = callChatCompletion(messagesA, config, { type: "json_object" }).catch(() => null);
+    const promiseB = callChatCompletion(messagesB, config, { type: "json_object" }).catch(() => null);
 
-    try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" });
-        if (content && (content.includes("There is no relevant information") || content.includes("未能在当前专属文献库中完全匹配"))) {
-            return {
-                directions: ["未能在当前专属文献库中检索到完全匹配的业务内容。"],
-                vocabulary: ["暂无匹配推荐"],
-                sentences: ["（本地知识库中暂无相关指导文本，请继续书写并触发联想）"]
-            };
-        }
-        return content ? safeJsonParse<AssociativeSuggestion>(content) : null;
-    } catch (e) { throw e; }
+    const isKbFallback = (content: string | null) =>
+        content?.includes("There is no relevant information") ||
+        content?.includes("未能在当前专属文献库中完全匹配");
+
+    // A 先到先渲染
+    const contentA = await promiseA;
+    if (isKbFallback(contentA)) {
+        return {
+            directions: ["未能在当前专属文献库中检索到完全匹配的业务内容。"],
+            sentences: [{ text: "（本地知识库中暂无相关指导文本，请继续书写并触发联想）", keywords: [] }]
+        };
+    }
+
+    const resultA = normalizeAssociativeResult(safeJsonParse(contentA ?? ''));
+    if (resultA && onPartialResult) {
+        onPartialResult(resultA); // 立即回调，让 UI 先渲染前 7 条
+    }
+
+    // B 后续追加
+    const contentB = await promiseB;
+    const resultB = isKbFallback(contentB) ? null : normalizeAssociativeResult(safeJsonParse(contentB ?? ''));
+
+    // 合并两批结果
+    const finalDirections = resultA?.directions ?? [];
+    const sentencesA = resultA?.sentences ?? [];
+    const sentencesB = resultB?.sentences ?? [];
+    const allSentences = [...sentencesA, ...sentencesB];
+
+    if (allSentences.length === 0 && finalDirections.length === 0) return null;
+    return { directions: finalDirections, sentences: allSentences };
 }

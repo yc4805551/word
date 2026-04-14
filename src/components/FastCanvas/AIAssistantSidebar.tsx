@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
-import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb } from 'lucide-react';
+import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb, Download, Trash2 } from 'lucide-react';
+
 import { polishText, chatWithDocument, generateAssociativeSuggestions, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
 
 import { useSettings } from '../../context/SettingsContext';
@@ -45,7 +46,28 @@ function ChatMessageItem({ msg }: { msg: ChatMessage }) {
                     <>
                         <div className="relative">
                             <div className={`markdown-body ${!isExpanded && isLong ? 'max-h-[220px] overflow-hidden' : ''}`}>
-                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                <ReactMarkdown
+                                    components={{
+                                        // 表格：加横向滚动容器，避免撑破侧边栏布局
+                                        table: ({ children }) => (
+                                            <div className="overflow-x-auto my-2 rounded border border-slate-200">
+                                                <table className="min-w-full">{children}</table>
+                                            </div>
+                                        ),
+                                        thead: ({ children }) => <thead className="bg-blue-50">{children}</thead>,
+                                        th: ({ children }) => (
+                                            <th className="px-2 py-1.5 text-left text-xs font-semibold text-blue-800 border-b border-slate-300 whitespace-nowrap">{children}</th>
+                                        ),
+                                        td: ({ children }) => (
+                                            <td className="px-2 py-1.5 text-xs text-slate-700 border-b border-slate-100">{children}</td>
+                                        ),
+                                        tr: ({ children }) => (
+                                            <tr className="even:bg-slate-50 hover:bg-blue-50/30 transition-colors">{children}</tr>
+                                        ),
+                                    }}
+                                >
+                                    {msg.content}
+                                </ReactMarkdown>
                             </div>
                             {!isExpanded && isLong && (
                                 <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-slate-100 to-transparent pointer-events-none" />
@@ -313,7 +335,28 @@ export default function AIAssistantSidebar() {
     };
 
     const handleAskConcept = (concept: string) => {
-        sendChatMessage(`请解释：“${concept}”`);
+        sendChatMessage(`请解释："${concept}"`);
+    };
+
+    // 导出对话记录为 .txt 文件
+    const handleExportChat = () => {
+        const lines = chatHistory.map(msg => {
+            const role = msg.role === 'user' ? '【我】' : '【AI助手】';
+            return `${role}\n${msg.content}\n`;
+        });
+        const content = `写作问答对话记录\n导出时间：${new Date().toLocaleString('zh-CN')}\n${'='.repeat(30)}\n\n${lines.join('\n' + '-'.repeat(20) + '\n\n')}`;
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `对话记录_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    // 清除对话记录，恢复初始欢迎语
+    const handleClearChat = () => {
+        setChatHistory([{ role: 'assistant', content: '您好！我是您的公文助手。我可以帮您润色文章、审查格式或回答相关问题。' }]);
     };
 
     return (
@@ -526,6 +569,30 @@ export default function AIAssistantSidebar() {
 
                 {mode === 'chat' && (
                     <div className="flex flex-col h-full bg-white rounded-lg border border-slate-200 overflow-hidden">
+                        {/* 对话工具栏：导出 / 清除（与左侧 Word导入/导出 区分，位于AI侧边栏内部） */}
+                        <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50 shrink-0">
+                            <span className="text-xs text-slate-400">写作问答 · {chatHistory.length - 1} 条对话</span>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={handleExportChat}
+                                    disabled={chatHistory.length <= 1}
+                                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="导出对话记录为文本文件"
+                                >
+                                    <Download className="w-3 h-3" />
+                                    导出记录
+                                </button>
+                                <button
+                                    onClick={handleClearChat}
+                                    disabled={chatHistory.length <= 1}
+                                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500 hover:bg-red-50 px-2 py-1 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="清除全部对话记录"
+                                >
+                                    <Trash2 className="w-3 h-3" />
+                                    清除
+                                </button>
+                            </div>
+                        </div>
                         <div className="flex-1 p-3 overflow-y-auto space-y-3">
                             {chatHistory.map((msg, i) => (
                                 <ChatMessageItem key={i} msg={msg} />
@@ -539,6 +606,7 @@ export default function AIAssistantSidebar() {
                                 </div>
                             )}
                         </div>
+
                         <div className="p-2 border-t border-slate-200 bg-slate-50 flex gap-2">
                             <input 
                                 type="text"

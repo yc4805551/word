@@ -1227,16 +1227,15 @@ export async function generateAssociativeSuggestions(
     // 请求 B：后台，仅 10 条补充句子
     const messagesB = buildAssociativeMessages(textContext, false, 10);
 
-    // 同时发出两个请求
-    const promiseA = callChatCompletion(messagesA, config, { type: "json_object" }, 0.0).catch(() => null);
+    // 为了保护本地私有模型AnythingLLM不会被瞬发的并发请求撑崩或触发CORS并发风暴，我们改为串行执行
+    const contentA = await callChatCompletion(messagesA, config, { type: "json_object" }, 0.0).catch(() => null);
     const promiseB = callChatCompletion(messagesB, config, { type: "json_object" }, 0.0).catch(() => null);
 
     const isKbFallback = (content: string | null) =>
         content?.includes("There is no relevant information") ||
         content?.includes("未能在当前专属文献库中完全匹配");
 
-    // A 先到先渲染
-    const contentA = await promiseA;
+    // A 先到先渲染（由于改为了串行，此时contentA已经获取完毕）
     if (isKbFallback(contentA)) {
         return {
             directions: ["未能在当前专属文献库中检索到完全匹配的业务内容。"],

@@ -248,15 +248,30 @@ export default function AIAssistantSidebar() {
 
     const handleGetAssociations = useCallback(async () => {
         if (!editor) return;
-        const text = editor.getText();
-        if (!text.trim()) return;
+        const { state } = editor;
+        const { from, to } = state.selection;
+        
+        let focusText = '';
+        if (from !== to) {
+            // If user highlights a word like "产业大脑", use exactly that
+            focusText = state.doc.textBetween(from, to, ' ');
+        } else {
+            // Otherwise capture text right before the cursor
+            focusText = state.doc.textBetween(Math.max(0, from - 200), from, ' ');
+        }
+
+        // Fallback to full document if still empty
+        if (!focusText.trim()) {
+            focusText = editor.getText();
+        }
+        if (!focusText.trim()) return;
 
         setIsAssociating(true);
         setAssociativeData(null);
         setAssociativeError(null);
         try {
             const result = await generateAssociativeSuggestions(
-                text,
+                focusText,
                 'anythingllm',
                 { apiKey: apiKeys['anythingllm'], endpoint: endpoints['anythingllm'], model: models['anythingllm'] },
                 // onPartialResult：请求 A 完成后立即更新 UI，不等 B

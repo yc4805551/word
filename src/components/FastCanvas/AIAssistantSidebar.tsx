@@ -6,6 +6,7 @@ import { polishText, chatWithDocument, generateAssociativeSuggestions, type Chat
 
 import { useSettings } from '../../context/SettingsContext';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 // 把句子中的 【关键词】 渲染成高亮可点击的 chip
 function SentenceWithHighlights({ text, onKeywordClick }: { text: string; onKeywordClick: (word: string) => void }) {
@@ -47,6 +48,7 @@ function ChatMessageItem({ msg }: { msg: ChatMessage }) {
                         <div className="relative">
                             <div className={`markdown-body ${!isExpanded && isLong ? 'max-h-[220px] overflow-hidden' : ''}`}>
                                 <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
                                     components={{
                                         // 表格：加横向滚动容器，避免撑破侧边栏布局
                                         table: ({ children }) => (
@@ -255,8 +257,8 @@ export default function AIAssistantSidebar() {
         try {
             const result = await generateAssociativeSuggestions(
                 text,
-                aiProvider,
-                { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] },
+                'anythingllm',
+                { apiKey: apiKeys['anythingllm'], endpoint: endpoints['anythingllm'], model: models['anythingllm'] },
                 // onPartialResult：请求 A 完成后立即更新 UI，不等 B
                 (partial) => setAssociativeData(partial)
             );

@@ -161,7 +161,8 @@ function isSmartLessonPayload(value: unknown): value is Omit<SmartLesson, 'artic
 async function callChatCompletion(
     messages: ChatMessage[],
     config: AIConfig,
-    schema?: unknown
+    schema?: unknown,
+    temperature: number = 0.7
 ): Promise<string | null> {
 
     // If user explicitly set .../openai/ endpoint, we TRY to use OpenAI compat, but if it fails with CORS (which we can't detect easily beforehand), 
@@ -191,7 +192,7 @@ async function callChatCompletion(
             system_instruction?: { parts: Array<{ text: string }> };
         } = {
             contents: geminiContents,
-            generationConfig: { temperature: 0.7 }
+            generationConfig: { temperature: temperature }
         };
 
         if (systemMsg) {
@@ -222,7 +223,7 @@ async function callChatCompletion(
         const payload: Record<string, unknown> = {
             model: config.model,
             messages: messages,
-            temperature: 0.7,
+            temperature: temperature,
         };
 
         if (schema) {
@@ -1163,44 +1164,52 @@ function normalizeAssociativeResult(raw: unknown): AssociativeSuggestion | null 
 
 // 构建联想灵感 prompt（可选：是否包含 directions）
 function buildAssociativeMessages(textContext: string, includeDirections: boolean, sentenceCount: number): ChatMessage[] {
-    const snippet = textContext.slice(-800);
+    const longContext = textContext.slice(-800);
+    const shortQuery = textContext.slice(-60).trim() || "公文";
+
     const systemContent = includeDirections
-        ? `你是公文写作助手，结合知识库帮助用户在写作卡壳时继续下去。
+        ? `你是专业的文献检索与批注引擎。你的任务是从知识库中寻找与用户当前正在撰写的内容高度相关的原有句子，并进行摘录。
 
-**第一步：提取核心词汇**
-从用户当前内容中提取 1-3 个核心名词或名词短语作为写作锚点。注意：提取的是名词概念而非动词。例如用户写"完成高质量数据集建设"，核心词是"高质量数据集"而非"完成"或"建设"。
+【背景参考】用户前文内容如下（供参考写作主题，无需逐词匹配）：
+---
+${longContext}
+---
 
-**第二步：生成结果**
-返回JSON对象，包含两个字段：
+**核心准则（重要！重要！重要！）**：
+必须【原句摘录】知识库中的内容，绝对禁止你自己编造、改写或生成新句子！如果知识库中相关原句不足，请只返回你能找到的数量，宁缺毋滥。
+特别注意：如果知识库中完全找不到任何相关的句子，请在 sentences 数组中仅返回一条：{"text": "未找到原句", "keywords": []}
 
-directions：2-3条接下来可以写的方向，每条不超过20字，围绕核心词汇展开。
+**工作步骤**：
+1. 分析用户的最新提问短语，提取核心名词概念（如"产业大脑"、"数字化转型"等）。
+2. 在由系统附加给你的知识库文档中，精准检索包含这些核心名词概念的段落。
+3. 提取具有参考价值的 ${sentenceCount} 条完整原句（字数不宜过长，单句即可）。
+4. 在摘录的原句中，挑出 1-2 个极具公文表现力的高级词汇（四字成语、专业术语等），用【】包裹进行标注。例如：坚持【问题导向】，持续深化【改革攻坚】。
+5. 顺带基于提取的概念，给出 2-3 个接下来可以续写的写作方向建议，每条不超过20字。
 
-sentences：${sentenceCount}条围绕核心词汇的公文句子，要求：
-- 每条句子必须围绕第一步提取的核心名词展开，确保主题聚焦不跑偏
-- 句子须符合公文行文规范：语体庄重、逻辑严密、表述精练
-- 优先参考知识库中的相关表述和用法，使句子贴近实际业务场景
-- 每条句子中把 1-2 个高级词汇或核心表达用【】标注，例如：在推进【数字化转型】的过程中，要【统筹兼顾】多方诉求
-- 【】内的词要有学习价值（四字成语、专业术语、高频公文词组优先）
-- 每条 sentences 元素格式：{"text": "含【词】的句子", "keywords": ["词1", "词2"]}
+返回 JSON 格式：
+{"directions": ["方向1的建议", "方向2的建议"], "sentences": [{"text": "摘录的原文句子，包含【好词】", "keywords": ["好词1", "好词2"]}, ...]}\``
+        : `你是专业的文献检索与批注引擎。你的任务是从知识库中寻找与用户当前正在撰写的内容高度相关的原有句子，并进行摘录。
 
-只返回JSON，格式：
-{"directions": ["方向1", "方向2"], "sentences": [{"text": "...", "keywords": [...]}, ...]}\``
-        : `你是公文写作助手。结合知识库，根据用户当前内容生成${sentenceCount}条公文句子。
+【背景参考】用户前文内容如下（供参考写作主题，无需逐词匹配）：
+---
+${longContext}
+---
 
-**关键规则**：先从用户内容中识别核心名词概念（如"高质量数据集"、"数字化转型"），所有句子必须围绕这些核心名词展开。
+**核心准则（重要！重要！重要！）**：
+必须【原句摘录】知识库中的内容，绝对禁止你自己编造、改写或生成新句子！如果知识库中有关联的原句不够，就只返回实际找到的条数。
+特别注意：如果知识库中完全找不到任何相关的句子，请在 sentences 数组中仅返回一条：{"text": "未找到原句", "keywords": []}
 
-要求：
-- 每条句子围绕用户的核心名词概念，主题聚焦，不泛泛而谈
-- 句子符合公文行文规范，语体庄重、逻辑严密、表述精练
-- 优先参考知识库中的相关表述，贴近实际业务场景
-- 每条把 1-2 个高级词汇用【】标注，例如：坚持【问题导向】，持续深化【改革攻坚】
-- 每条格式：{"text": "含【词】的句子", "keywords": ["词1", "词2"]}
+**工作步骤**：
+1. 分析用户的最新提问短语，提取核心名词概念。
+2. 在你的知识库背景资料中寻找相关的完整原句并原封不动地摘录（最高提取 ${sentenceCount} 条）。
+3. 在摘录的原句中，寻找 1-2 个高级词汇（高频公文词组或成语），用【】标注。例如：在推进【数字化转型】的过程中，要【统筹兼顾】多方诉求。
 
-只返回JSON，格式：{"sentences": [{"text": "...", "keywords": [...]}, ...]}\``;
+返回 JSON 格式：
+{"sentences": [{"text": "含【词】的摘录原句", "keywords": ["词1", "词2"]}, ...]}\``;
 
     return [
         { role: "system", content: systemContent },
-        { role: "user", content: `当前写作内容：\n\n${snippet}` }
+        { role: "user", content: shortQuery } // Purely the search term, absolutely zero noise instruction.
     ];
 }
 
@@ -1213,14 +1222,14 @@ export async function generateAssociativeSuggestions(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey) && provider !== 'anythingllm') return null;
 
-    // 请求 A：优先，包含 directions + 前 7 条句子
-    const messagesA = buildAssociativeMessages(textContext, true, 7);
-    // 请求 B：后台，仅 8 条补充句子（prompt 更短，更快）
-    const messagesB = buildAssociativeMessages(textContext, false, 8);
+    // 请求 A：优先，包含 directions + 前 10 条句子
+    const messagesA = buildAssociativeMessages(textContext, true, 10);
+    // 请求 B：后台，仅 10 条补充句子
+    const messagesB = buildAssociativeMessages(textContext, false, 10);
 
     // 同时发出两个请求
-    const promiseA = callChatCompletion(messagesA, config, { type: "json_object" }).catch(() => null);
-    const promiseB = callChatCompletion(messagesB, config, { type: "json_object" }).catch(() => null);
+    const promiseA = callChatCompletion(messagesA, config, { type: "json_object" }, 0.0).catch(() => null);
+    const promiseB = callChatCompletion(messagesB, config, { type: "json_object" }, 0.0).catch(() => null);
 
     const isKbFallback = (content: string | null) =>
         content?.includes("There is no relevant information") ||

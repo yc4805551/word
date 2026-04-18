@@ -1227,9 +1227,9 @@ export async function generateAssociativeSuggestions(
     // 请求 B：后台，仅 10 条补充句子
     const messagesB = buildAssociativeMessages(textContext, false, 10);
 
-    // 为了保护本地私有模型AnythingLLM不会被瞬发的并发请求撑崩或触发CORS并发风暴，我们改为串行执行
-    const contentA = await callChatCompletion(messagesA, config, { type: "json_object" }, 0.0).catch(() => null);
-    const promiseB = callChatCompletion(messagesB, config, { type: "json_object" }, 0.0).catch(() => null);
+    // 为了保护本地私有模型AnythingLLM不会被瞬发的并发请求撑崩或触发CORS并发风暴，我们改为串行执行，同时移除可能导致底层拒收的严格 json_object 参数
+    const contentA = await callChatCompletion(messagesA, config, undefined, 0.1).catch(() => null);
+    const promiseB = callChatCompletion(messagesB, config, undefined, 0.1).catch(() => null);
 
     const isKbFallback = (content: string | null) =>
         content?.includes("There is no relevant information") ||

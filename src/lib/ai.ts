@@ -1148,10 +1148,20 @@ function normalizeAssociativeSentence(raw: unknown): AssociativeSentence | null 
         return { text: raw, keywords };
     }
     if (isObject(raw) && typeof raw.text === 'string') {
+        let text = raw.text;
         const keywords = Array.isArray(raw.keywords)
             ? raw.keywords.filter((k): k is string => typeof k === 'string')
-            : [...raw.text.matchAll(/【([^】]+)】/g)].map(m => m[1]);
-        return { text: raw.text, keywords };
+            : [...text.matchAll(/【([^】]+)】/g)].map(m => m[1]);
+            
+        // 动态补全大模型漏加的【】标记
+        if (keywords.length > 0) {
+            keywords.forEach(kw => {
+                if (!text.includes(`【${kw}】`) && text.includes(kw)) {
+                    text = text.replace(kw, `【${kw}】`);
+                }
+            });
+        }
+        return { text, keywords };
     }
     return null;
 }
@@ -1233,8 +1243,8 @@ export async function generateAssociativeSuggestions(
     const messagesB = buildAssociativeMessages(textContext, false, 10);
 
     // 为了保护本地私有模型AnythingLLM不会被瞬发的并发请求撑崩或触发CORS并发风暴，我们改为串行执行，同时移除可能导致底层拒收的严格 json_object 参数
-    const contentA = await callChatCompletion(messagesA, config, undefined, 0.1).catch(() => null);
-    const promiseB = callChatCompletion(messagesB, config, undefined, 0.1).catch(() => null);
+    const contentA = await callChatCompletion(messagesA, config, undefined, 0.1).catch((e) => { console.error("API Error A:", e.message); return null; });
+    const promiseB = callChatCompletion(messagesB, config, undefined, 0.1).catch((e) => { console.error("API Error B:", e.message); return null; });
 
     const isKbFallback = (content: string | null) =>
         content?.includes("There is no relevant information") ||

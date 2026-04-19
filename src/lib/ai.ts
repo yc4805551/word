@@ -109,7 +109,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | un
     parentSignal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = window.setTimeout(() => {
-        const error = new Error(`请求超时 (180秒)，大模型响应缓慢请耐心等待或重试。`);
+        const error = new Error(`请求超时 (90秒)，大模型响应缓慢请耐心等待或重试。`);
         error.name = 'TimeoutError';
         controller.abort(error);
     }, timeoutMs);
@@ -212,7 +212,7 @@ async function callChatCompletion(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
-        }, 180_000);
+        }, 90_000);
 
         if (!response.ok) {
             const errText = await response.text();
@@ -242,7 +242,7 @@ async function callChatCompletion(
                 'Authorization': `Bearer ${config.apiKey}`,
             },
             body: JSON.stringify(payload),
-        }, 180_000);
+        }, 90_000);
 
         if (!response.ok) {
             const errText = await response.text();

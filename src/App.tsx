@@ -11,8 +11,16 @@ import Week6 from './pages/Week6';
 import FastCanvas from './pages/FastCanvas';
 
 import { SettingsProvider } from './context/SettingsContext';
+import { useAuth } from './hooks/useAuth';
+import { LoginScreen } from './components/LoginScreen';
 
 function App() {
+  const { isAuthenticated, login } = useAuth();
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={login} />;
+  }
+
   return (
     <SettingsProvider>
       <HashRouter>

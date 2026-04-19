@@ -122,15 +122,20 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | un
 }
 
 function extractJsonCandidate(text: string) {
-    const trimmed = text.trim();
+    let trimmed = text.trim();
     if (!trimmed) return null;
+
+    // 清除可能存在的 DeepSeek/Qwen 思考过程
+    trimmed = trimmed.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
     const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
     if (fenceMatch?.[1]) return fenceMatch[1].trim();
 
     const firstBrace = trimmed.search(/[{[]/);
-    if (firstBrace === -1) return null;
-    const candidate = trimmed.slice(firstBrace).trim();
+    const lastBrace = Math.max(trimmed.lastIndexOf('}'), trimmed.lastIndexOf(']'));
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) return null;
+    
+    const candidate = trimmed.slice(firstBrace, lastBrace + 1).trim();
     return candidate;
 }
 

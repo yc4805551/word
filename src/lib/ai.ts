@@ -140,12 +140,17 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit | un
     }
 }
 
+function stripThinking(text: string | null): string | null {
+    if (!text) return text;
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
 function extractJsonCandidate(text: string) {
     let trimmed = text.trim();
     if (!trimmed) return null;
 
     // 清除可能存在的 DeepSeek/Qwen 思考过程
-    trimmed = trimmed.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    trimmed = stripThinking(trimmed) || '';
 
     const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
     if (fenceMatch?.[1]) return fenceMatch[1].trim();
@@ -240,7 +245,7 @@ async function callChatCompletion(
 
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        return text || null;
+        return stripThinking(text || null);
 
     } else {
         // --- OPENAI COMPAT MODE (DeepSeek, OpenAI, or Custom Proxy) ---
@@ -269,7 +274,7 @@ async function callChatCompletion(
         }
 
         const data = await response.json();
-        return data.choices?.[0]?.message?.content || null;
+        return stripThinking(data.choices?.[0]?.message?.content || null);
     }
 }
 
@@ -800,8 +805,9 @@ export async function generateCompletion(
             .finally(() => window.clearTimeout(timer));
         if (!content) return null;
 
-        // 去除引号、书名号、空白
+        // 去除引号、书名号、空白、思考过程（虽然 callChatCompletion 已经做过一次）
         const cleaned = content
+            .replace(/<think>[\s\S]*?<\/think>/gi, '')
             .trim()
             .replace(/^["'\u201c\u300c\u300e]|["'\u201d\u300d\u300f]$/g, '')
             .trim();

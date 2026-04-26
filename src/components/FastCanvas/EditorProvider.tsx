@@ -10,6 +10,10 @@ interface EditorContextType {
 
     title: string;
     setTitle: (title: string) => void;
+
+    /** 智能写作补全功能开关 */
+    completionEnabled: boolean;
+    setCompletionEnabled: (enabled: boolean) => void;
 }
 
 const EditorContext = createContext<EditorContextType | undefined>(undefined);
@@ -17,8 +21,8 @@ const EditorContext = createContext<EditorContextType | undefined>(undefined);
 export function EditorProvider({ children }: { children: React.ReactNode }) {
     const [editor, setEditor] = useState<Editor | null>(null);
     const [documentId, setDocumentId] = useState<string>('default-doc');
-
     const [title, setTitle] = useState('未命名公文');
+    const [completionEnabled, setCompletionEnabled] = useState(false);
 
     return (
         <EditorContext.Provider value={{
@@ -26,9 +30,10 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
             setEditor,
             documentId,
             setDocumentId,
-
             title,
-            setTitle
+            setTitle,
+            completionEnabled,
+            setCompletionEnabled,
         }}>
             {children}
         </EditorContext.Provider>

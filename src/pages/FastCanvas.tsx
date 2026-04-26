@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { EditorProvider } from '../components/FastCanvas/EditorProvider';
 import EditorArea from '../components/FastCanvas/EditorArea';
 import AIAssistantSidebar from '../components/FastCanvas/AIAssistantSidebar';
-import { Upload, Download } from 'lucide-react';
+import { Upload, Download, Sparkles } from 'lucide-react';
 import mammoth from 'mammoth';
 
 export default function FastCanvas() {
@@ -55,78 +55,111 @@ export default function FastCanvas() {
             }
         };
         reader.readAsArrayBuffer(file);
-        // Reset input
+    // Reset input
         e.target.value = '';
     };
 
     return (
         <EditorProvider>
-            <div className="flex flex-col h-[calc(100vh-8rem)] -mt-2 -mx-2 md:h-full md:m-0 overflow-hidden bg-white md:bg-transparent">
-                
-                {/* Top Toolbar */}
-                <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 md:rounded-t-lg shadow-sm z-10 shrink-0">
-                    <div className="flex items-center gap-4 flex-1">
-                        <input 
-                            type="text" 
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            className="text-lg font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-0 m-0 w-64 placeholder-slate-400 hover:bg-slate-50 transition-colors focus:bg-white rounded px-1"
-                            placeholder="输入文档标题..."
-                        />
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        <input 
-                            type="file" 
-                            id="import-file-input"
-                            accept=".docx"
-                            className="hidden"
-                            onChange={handleImport}
-                        />
-                        <button 
-                            onClick={handleImportClick}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
-                        >
-                            <Upload className="w-4 h-4" />
-                            <span className="hidden sm:inline">导入 Word</span>
-                        </button>
-                        <button 
-                            onClick={handleExport}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
-                        >
-                            <Download className="w-4 h-4" />
-                            <span className="hidden sm:inline">导出标准公文</span>
-                        </button>
-                    </div>
+            <FastCanvasContent 
+                title={title}
+                setTitle={setTitle}
+                sidebarWidth={sidebarWidth}
+                handleMouseDown={handleMouseDown}
+                handleExport={handleExport}
+                handleImportClick={handleImportClick}
+                handleImport={handleImport}
+            />
+        </EditorProvider>
+    );
+}
+
+function FastCanvasContent({ 
+    title, setTitle, sidebarWidth, handleMouseDown, handleExport, handleImportClick, handleImport 
+}: any) {
+    const { completionEnabled, setCompletionEnabled } = useEditorContext();
+
+    return (
+        <div className="flex flex-col h-[calc(100vh-8rem)] -mt-2 -mx-2 md:h-full md:m-0 overflow-hidden bg-white md:bg-transparent">
+            
+            {/* Top Toolbar */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 md:rounded-t-lg shadow-sm z-10 shrink-0">
+                <div className="flex items-center gap-4 flex-1">
+                    <input 
+                        type="text" 
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="text-lg font-bold text-slate-800 bg-transparent border-none focus:ring-0 p-0 m-0 w-64 placeholder-slate-400 hover:bg-slate-50 transition-colors focus:bg-white rounded px-1"
+                        placeholder="输入文档标题..."
+                    />
                 </div>
-
-                {/* Main Workspace */}
-                <div className="flex flex-1 overflow-hidden relative">
-                    {/* Editor Left Side */}
-                    <div className="flex-1 h-full min-w-0 flex flex-col relative z-0">
-                        <EditorArea />
-                        <CharacterCountBar />
-                    </div>
-
-                    {/* Draggable Handle */}
-                    <div 
-                        onMouseDown={handleMouseDown}
-                        className="w-1.5 hover:w-2 bg-transparent hover:bg-blue-400 cursor-col-resize z-10 absolute right-0 top-0 bottom-0 flex items-center justify-center group transition-all"
-                        style={{ right: `${sidebarWidth}px`, transform: 'translateX(50%)' }}
+                
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => setCompletionEnabled(!completionEnabled)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-all shadow-sm border ${
+                            completionEnabled 
+                                ? 'bg-blue-50 text-blue-600 border-blue-200' 
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        }`}
+                        title={completionEnabled ? "点击关闭 AI 补全" : "点击开启 AI 补全"}
                     >
-                        <div className="h-8 w-1 bg-slate-200 group-hover:bg-white rounded-full"></div>
-                    </div>
+                        <Sparkles className={`w-4 h-4 ${completionEnabled ? 'animate-pulse text-blue-500' : ''}`} />
+                        <span className="hidden sm:inline">{completionEnabled ? '补全已开启' : '开启 AI 补全'}</span>
+                    </button>
 
-                    {/* AI Sidebar Right Side */}
-                    <div 
-                        className="h-full shrink-0 hidden md:block" 
-                        style={{ width: `${sidebarWidth}px` }}
+                    <div className="w-px h-6 bg-slate-200 mx-1"></div>
+
+                    <input 
+                        type="file" 
+                        id="import-file-input"
+                        accept=".docx"
+                        className="hidden"
+                        onChange={handleImport}
+                    />
+                    <button 
+                        onClick={handleImportClick}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-slate-200"
                     >
-                        <AIAssistantSidebar />
-                    </div>
+                        <Upload className="w-4 h-4" />
+                        <span className="hidden sm:inline">导入 Word</span>
+                    </button>
+                    <button 
+                        onClick={handleExport}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+                    >
+                        <Download className="w-4 h-4" />
+                        <span className="hidden sm:inline">导出标准公文</span>
+                    </button>
                 </div>
             </div>
-        </EditorProvider>
+
+            {/* Main Workspace */}
+            <div className="flex flex-1 overflow-hidden relative">
+                {/* Editor Left Side */}
+                <div className="flex-1 h-full min-w-0 flex flex-col relative z-0">
+                    <EditorArea />
+                    <CharacterCountBar />
+                </div>
+
+                {/* Draggable Handle */}
+                <div 
+                    onMouseDown={handleMouseDown}
+                    className="w-1.5 hover:w-2 bg-transparent hover:bg-blue-400 cursor-col-resize z-10 absolute right-0 top-0 bottom-0 flex items-center justify-center group transition-all"
+                    style={{ right: `${sidebarWidth}px`, transform: 'translateX(50%)' }}
+                >
+                    <div className="h-8 w-1 bg-slate-200 group-hover:bg-white rounded-full"></div>
+                </div>
+
+                {/* AI Sidebar Right Side */}
+                <div 
+                    className="h-full shrink-0 hidden md:block" 
+                    style={{ width: `${sidebarWidth}px` }}
+                >
+                    <AIAssistantSidebar />
+                </div>
+            </div>
+        </div>
     );
 }
 

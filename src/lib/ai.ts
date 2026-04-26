@@ -1,10 +1,29 @@
 import type { StructurePattern } from '../data/week3-data';
-
-export interface AIConfig {
-    apiKey: string;
-    endpoint: string;
-    model: string;
-}
+import { 
+    type AIConfig, 
+    type ChatMessage, 
+    type AIResponse,
+    type PolishedText,
+    type AuditResult,
+    type AuthenticityResult,
+    type AssociativeSuggestion,
+    type AssociativeSentence,
+    type Quiz,
+    type LogicExpansion,
+    type OutlineResult,
+    type ScenarioPractice,
+    type StructurePractice,
+    type FranklinFeedback,
+    type EvidenceCheckResult,
+    type WinstonStarResult,
+    type SmartWeek1Training,
+    type SmartLesson,
+    type ContextualPractice
+} from './ai-types';
+export * from './ai-types';
+import { PROMPTS } from './prompts';
+import { TRAINING_PROMPTS } from './training-prompts';
+import { COMPLETION_PROMPTS } from './completion-prompts';
 
 export function getAIConfig(
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
@@ -256,17 +275,6 @@ async function callChatCompletion(
 
 // --- EXPORTED FUNCTIONS USING HELPER ---
 
-export interface ChatMessage {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-}
-
-interface AIResponse {
-    success: boolean;
-    data?: string;
-    error?: string;
-}
-
 export async function interactivePolish(
     history: ChatMessage[],
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
@@ -291,10 +299,7 @@ export async function generateText(prompt: string, provider: 'openai' | 'deepsee
     if (!normalizeApiKey(config.apiKey)) throw new Error(`未配置 ${provider} 的 API Key，请在“系统设置”中填写。`);
 
     try {
-        const messages: ChatMessage[] = [
-            { role: "system", content: "你是一个公文写作助手。请根据用户的主题，生成一篇标准的、格式规范的公文范文（如调研报告、通知、方案等）。内容要专业、严谨，符合中国政府公文语体风格。字数控制在300-500字左右，适合打字练习。" },
-            { role: "user", content: `请以“${prompt}”为主题，生成一篇公文范文。` }
-        ];
+        const messages = TRAINING_PROMPTS.generateText(prompt);
 
         let content = await callChatCompletion(messages, config, undefined);
         content = content || "生成失败";
@@ -310,17 +315,6 @@ export async function generateText(prompt: string, provider: 'openai' | 'deepsee
     }
 }
 
-export interface Quiz {
-    word: string;
-    focus: string;
-    options: { A: string; B: string };
-    correct: 'A' | 'B';
-    note?: string;
-    finalPair?: 'in/ing' | 'en/eng';
-    optionFinals?: { A?: string; B?: string };
-    correctFinal?: string;
-}
-
 export async function generateQuiz(
     text: string,
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
@@ -333,37 +327,8 @@ export async function generateQuiz(
     const preferPair = options?.preferPair;
     const preferWords = Array.isArray(options?.preferWords) ? options?.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个汉语拼音专家。请仔细分析用户提供的文本，执行以下步骤：
-            1. 找出文本中所有包含前后鼻音韵母（in, ing, en, eng）的词语。请注意：**严格排除**包含 an, ang 的词语，只关注 in, ing, en, eng。
-            2. 统计这些词语在文中出现的频率，优先选择出现频率较高或文中关键的词语。
-            3. 基于这些高频/关键词语，生成6-8个拼音辨析题。
-            
-            请返回一个JSON数组，格式如下：
-            [
-                {
-                    "word": "词语（如：运行）",
-                    "focus": "易混字（如：行）",
-                    "options": { "A": "xín (前)", "B": "xíng (后)" },
-                    "correct": "B",
-                    "finalPair": "in/ing 或 en/eng（必填）",
-                    "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
-                    "correctFinal": "in/ing/en/eng 之一（必填）"
-                }
-            ]
-            注意：返回纯JSON array.`
-        },
-        {
-            role: "user",
-            content: `请分析以下文本并生成拼音辨析题。
-优先考察：${preferPair ?? '自动'}
-优先覆盖这些常错词（若文本中出现则尽量出题）：${preferWords.length ? JSON.stringify(preferWords) : '无'}
-文本：
-${text}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.quiz(text, preferPair, preferWords);
+
 
     try {
         const content = await callChatCompletion(messages, config, undefined) || "[]";
@@ -390,36 +355,7 @@ export async function generatePinyinQuiz(
     const preferPair = options?.preferPair;
     const preferWords = Array.isArray(options?.preferWords) ? options?.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个汉语拼音专家。请生成一组（8-10个）针对“前后鼻音”即(in/ing, en/eng)的易混词辨析题。
-            请严格遵守以下规则：
-            1. 词语必须是公文写作中常见的双字或四字词语。
-            2. 重点考察的字必须包含 in, ing, en, eng 韵母。
-            3. 题目格式必须包含：词语、易混字、正确选项、干扰选项（拼音错误或声调错误）。
-            
-            请返回一个JSON数组，格式如下：
-            [
-                {
-                    "word": "词语（如：深化改革）",
-                    "focus": "易混字（如：深）",
-                    "options": { "A": "shēn (前)", "B": "shēng (后)" },
-                    "correct": "A",
-                    "note": "‘深化’中的‘深’是前鼻音。",
-                    "finalPair": "in/ing 或 en/eng（必填）",
-                    "optionFinals": { "A": "in/ing/en/eng 之一（必填）", "B": "in/ing/en/eng 之一（必填）" },
-                    "correctFinal": "in/ing/en/eng 之一（必填）"
-                }
-            ]`
-        },
-        {
-            role: "user",
-            content: `请生成一组前后鼻音辨析题。
-优先考察：${preferPair ?? '自动'}
-优先覆盖这些常错词（若合理则尽量融入）：${preferWords.length ? JSON.stringify(preferWords) : '无'}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.pinyinQuiz(preferPair, preferWords);
 
     try {
         const content = await callChatCompletion(messages, config, undefined) || "[]";
@@ -434,11 +370,7 @@ export async function generatePinyinQuiz(
     }
 }
 
-export interface SmartWeek1Training {
-    article: string;
-    guidance: string;
-    quizzes: Quiz[];
-}
+
 
 export async function generateSmartWeek1Training(
     input: {
@@ -458,25 +390,7 @@ export async function generateSmartWeek1Training(
     const preferWords = Array.isArray(input.preferWords) ? input.preferWords.filter(w => typeof w === 'string' && w.trim()) : [];
     const styleReference = typeof input.styleReference === 'string' ? input.styleReference.trim() : '';
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是汉语拼音训练设计师，专注前后鼻音(in/ing, en/eng)辨析。生成一个JSON对象，包含三个字段：
-- article：120字左右的公文风格短段落，自然融入 in/ing 和 en/eng 词汇。
-- guidance：1句话说明本次训练重点。
-- quizzes：4个前后鼻音辨析题数组。
-
-每道题格式：{"word":"词语","focus":"易混字","options":{"A":"正确拼音(前/后)","B":"错误拼音(前/后)"},"correct":"A或B","finalPair":"in/ing或en/eng","optionFinals":{"A":"in/ing/en/eng","B":"in/ing/en/eng"},"correctFinal":"in/ing/en/eng"}
-
-注意：只用 in/ing/en/eng 韵母，禁止 an/ang，词语必须是常见公文词语，只返回JSON对象。`
-        },
-        {
-            role: "user",
-            content: `重点考察：${preferPair ?? 'in/ing和en/eng各半'}
-常错词（尽量覆盖）：${preferWords.length ? preferWords.join('、') : '无'}
-风格参考：${styleReference ? styleReference.slice(0, 500) : '无'}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.smartWeek1(preferPair ?? 'in/ing和en/eng各半', preferWords, styleReference);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -501,46 +415,13 @@ export async function generateSmartWeek1Training(
 }
 
 
-export interface SmartLesson {
-    article: string;
-    keywords: Array<{
-        word: string;
-        meaning: string;
-        analysis: string;
-        example: string;
-        expansion: string[];
-    }>;
-    practice: {
-        text: string;
-        blanks: Array<{
-            id: number;
-            answer: string;
-            hint: string;
-        }>;
-    };
-}
+
 
 export async function analyzeAndGeneratePractice(article: string, focusWords: string[], provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<SmartLesson | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个公文写作教学专家。
-用户提供了一段公文和他们想要学习的“重点词汇”。
-请执行以下任务并返回JSON：
-1. 词汇解析与举一反三（释义、例句、近义词）。
-2. 生成填空练习。文章中的填空位置请严格使用此格式：___[序号]___。注意：不要在横线中包含提示词，提示词请放在blanks数组中。例如：___[1]___。
-返回格式（严格JSON）：
-{
-    "article": "...", 
-    "keywords": [{ "word": "...", "meaning": "...", "analysis": "...", "example": "...", "expansion": ["..."] }],
-    "practice": { "text": "文章内容...___[1]___...", "blanks": [{ "id": 1, "answer": "...", "hint": "（动词/名词/成语）" }] }
-}`
-        },
-        { role: "user", content: `文章内容：${article}\n\n用户关注的词：${JSON.stringify(focusWords)}` }
-    ];
+    const messages = TRAINING_PROMPTS.practice(article, focusWords);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -555,25 +436,13 @@ export async function analyzeAndGeneratePractice(article: string, focusWords: st
 
 // ... Additional simple functions using callChatCompletion ...
 
-export interface ContextualPractice {
-    scenario: string;
-    sentence: string;
-    target: string;
-    hint: string;
-}
+
 
 export async function generateContextualPractice(colloquial: string, official: string, provider: 'openai' | 'deepseek' | 'gemini' = 'openai'): Promise<ContextualPractice | null> {
     const config = getAIConfig(provider);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个脑科学训练专家。请根据提供的“口语词”和“规范词”，设计一个场景化训练题。
-返回JSON: { "scenario": "...", "sentence": "...", "target": "...", "hint": "..." }`
-        },
-        { role: "user", content: `口语词：${colloquial}，规范词：${official}` }
-    ];
+    const messages = TRAINING_PROMPTS.contextualPractice(colloquial, official);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -581,45 +450,13 @@ export async function generateContextualPractice(colloquial: string, official: s
     } catch { return null; }
 }
 
-export interface PolishedText {
-    original: string;
-    polished: string;
-    changes: Array<{
-        original_word: string;
-        polished_word: string;
-        rationale: string;
-    }>;
-    overall_comment: string;
-}
+
 
 export async function polishText(text: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<PolishedText | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个精通公文写作与纠错的文字专家。请对用户提供的段落进行“体检式”润色。你的首要任务是：
-1. **纠正错别字与标点符号**：发现并修正所有错别字、用词不当、标点符号使用错误。
-2. **修正语法与成分**：修复病句、成分残缺、指代不明等语法问题。
-3. **优化逻辑连贯性**：确保句子之间逻辑紧密，转承自然。
-4. **提升专业风格**：在保证准确的基础，将语体调整为专业、克制、严谨的“工信部及政府公文风格”。
-
-请返回严格的 JSON 格式（不要输出全文本，仅输出修改点，以极大提升速度）：
-{
-  "original": "原始文本片段（可选，若太长可忽略）",
-  "changes": [
-    {
-      "original_word": "修改前的片段",
-      "polished_word": "修改后的片段",
-      "rationale": "修改理由，如：修正错别字、语法纠错、提升专业度等"
-    }
-  ],
-  "overall_comment": "总体评价，涵盖文章优缺点及改进重点"
-}`
-        },
-        { role: "user", content: `请润色这段文字：${text}` }
-    ];
+    const messages = PROMPTS.polish(text);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -627,26 +464,13 @@ export async function polishText(text: string, provider: 'openai' | 'deepseek' |
     } catch { return null; }
 }
 
-export interface ScenarioPractice {
-    scenario: string;
-    sentence: string;
-    target_possibilities: string[];
-    hint: string;
-    explanation: string;
-}
+
 
 export async function generateScenarioPractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<ScenarioPractice | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `公文写作教练。针对口头禅“${word}”生成反例和规范词推荐。
-返回JSON: { "scenario": "...", "sentence": "...", "target_possibilities": [...], "hint": "...", "explanation": "..." }`
-        },
-        { role: "user", content: `请针对口头禅“${word}”生成一个训练场景。` }
-    ];
+    const messages = TRAINING_PROMPTS.scenario(word);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -658,28 +482,7 @@ export async function generateUsagePractice(word: string, provider: 'openai' | '
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个公文写作教练。
-请针对高级词汇“${word}”设计一个应用场景训练题。
-1. 设定一个需要用到该词的公务场景（Scenario）。
-2. 写一个句子（Sentence），其中该词的位置用 ____ 代替。
-3. 提供提示（Hint），例如“填入一个表示XXX的二字词”。
-4. 目标答案（target_possibilities）即为该词（也可以包含同义且恰当的词）。
-5. 解析（Explanation）解释为什么这里用这个词最恰当。
-
-返回JSON（Strict JSON）：
-{
-  "scenario": "...",
-  "sentence": "...",
-  "target_possibilities": ["..."],
-  "hint": "...",
-  "explanation": "..."
-}`
-        },
-        { role: "user", content: `请针对词汇“${word}”生成一个正面应用训练场景。` }
-    ];
+    const messages = TRAINING_PROMPTS.usage(word);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -687,24 +490,13 @@ export async function generateUsagePractice(word: string, provider: 'openai' | '
     } catch { return null; }
 }
 
-export interface StructurePractice {
-    skeleton: string;
-    example: string;
-    analysis: string;
-}
+
 
 export async function generateStructurePractice(topic: string, structure: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<StructurePractice | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `公文写作教练，擅长句式仿写。
-返回JSON: { "skeleton": "...", "example": "...", "analysis": "..." }`
-        },
-        { role: "user", content: `主题：${topic}\n句式模板：${structure}` }
-    ];
+    const messages = TRAINING_PROMPTS.structure(topic, structure);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -712,12 +504,7 @@ export async function generateStructurePractice(topic: string, structure: string
     } catch { return null; }
 }
 
-export interface FranklinFeedback {
-    standard_version: string;
-    score: number;
-    diff_analysis: string;
-    key_improvements: string[];
-}
+
 
 export async function generateFranklinFeedback(
     topic: string,
@@ -729,34 +516,7 @@ export async function generateFranklinFeedback(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一位精通“富兰克林写作法”的公文写作教练。该方法的核是：模仿、对比、反馈。
-请执行以下任务：
-1. **生成标杆**：根据用户提供的“主题”和“句式模板”，撰写一个高质量、标准的公文句子（标杆范文）。
-2. **对比分析**：将用户的“仿写初稿”与你生成的“标杆范文”进行对比。
-3. **评价反馈**：
-   - 打分（0-100分）。
-   - 差距分析（Diff Analysis）：指出用户在词汇选用、逻辑递进、气势营造上与标杆的差距。
-   - 改进建议（Key Improvements）：列出3个具体的修改建议。
-
-返回严谨的JSON格式：
-{
-    "standard_version": "...",
-    "score": 85,
-    "diff_analysis": "...",
-    "key_improvements": ["...", "...", "..."]
-}`
-        },
-        {
-            role: "user",
-            content: `
-主题：${topic}
-句式模板：${structure_template}
-用户的仿写初稿：${user_draft}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.franklin(topic, structure_template, user_draft);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -764,25 +524,13 @@ export async function generateFranklinFeedback(
     } catch { return null; }
 }
 
-export interface LogicExpansion {
-    original: string;
-    expanded: string;
-    logic_mode: string;
-    breakdown: string;
-}
+
 
 export async function expandLogic(point: string, mode: string, instruction?: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<LogicExpansion | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `公文写作教练，擅长逻辑扩写。
-返回JSON: { "original": "...", "expanded": "...", "logic_mode": "...", "breakdown": "..." }`
-        },
-        { role: "user", content: `核心观点：${point}\n逻辑模式：${mode}\n${instruction ? `具体指导要求：${instruction}` : ''}` }
-    ];
+    const messages = TRAINING_PROMPTS.logicExpansion(point, mode, instruction);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -790,27 +538,13 @@ export async function expandLogic(point: string, mode: string, instruction?: str
     } catch { return null; }
 }
 
-export interface OutlineResult {
-    title: string;
-    sections: {
-        lvl1: string;
-        lvl2: string[];
-    }[];
-    comment: string;
-}
+
 
 export async function generateOutline(theme: string, type: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<OutlineResult | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `公文写作专家。搭建严密提纲。
-返回JSON: { "title": "...", "sections": [{ "lvl1": "...", "lvl2": [...] }], "comment": "..." }`
-        },
-        { role: "user", content: `文种：${type}\n主题：${theme}` }
-    ];
+    const messages = TRAINING_PROMPTS.outline(theme, type);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -822,10 +556,7 @@ export async function generateArticle(topic: string, provider: 'openai' | 'deeps
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        { role: "system", content: "撰写约150字优美公文段落。" },
-        { role: "user", content: `主题：${topic}` }
-    ];
+    const messages = TRAINING_PROMPTS.articleSummary(topic);
     return callChatCompletion(messages, config, undefined);
 }
 
@@ -837,37 +568,7 @@ export async function extractStructureFromText(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return [];
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个语言学专家和公文写作教练，擅长拆解文章中的修辞手法和句式结构。
-请分析用户提供的文本，提取出其中具有“可复用性”的高价值句式（如：排比、递进、对仗、因果、对比等）。
-
-请返回一个 JSON 数组，每个元素包含：
-- id: 随机生成一个数字ID.
-- name: 给这个句式起一个专业的名称（4-6字，如“层层递进式”）.
-- template: 提炼出的句式骨架（用...代表变量内容）.
-- description: 简要说明该句式的用法和修辞效果。
-- difficulty: 难度等级 (1-5).
-
-返回格式：
-[
-  {
-    "id": 101,
-    "name": "...",
-    "template": "...",
-    "description": "...",
-    "difficulty": 3
-  }
-]
-注意：请严格返回 JSON 数组。`
-        },
-        {
-            role: "user",
-            content: `文本内容：
-${text.slice(0, 2000)}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.extractStructure(text);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -884,15 +585,7 @@ ${text.slice(0, 2000)}`
     }
 }
 
-export interface EvidenceCheckResult {
-    original_text: string;
-    claims: Array<{
-        segment: string;
-        issue: string; // 例如：“缺乏数据支撑”、“论断过于主观”
-        suggestion: string; // 例如：“请补充具体的增长数据”、“建议引用权威报告”
-    }>;
-    overall_score: number; // 0-100 严谨度评分
-}
+
 
 export async function analyzeEvidence(
     text: string,
@@ -902,27 +595,7 @@ export async function analyzeEvidence(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个严谨的审稿人，专注于“基于证据的论证”（Evidence-Based Argumentation）。
-请分析用户文本，找出那些“缺乏证据支撑”的断言（Claims）。
-对于每个问题断言，请指出具体问题（如：数据缺失、来源不明、过于主观），并给出补充证据的建议（如：引用具体数据、文献、案例）。
-
-请返回 JSON 格式：
-{
-  "original_text": "...",
-  "claims": [
-    { "segment": "原文中的具体句子...", "issue": "缺乏数据支撑", "suggestion": "补充具体的同比增长率数据" }
-  ],
-  "overall_score": 75 
-}`
-        },
-        {
-            role: "user",
-            content: `请分析这段文本的论证严谨性：\n${text}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.evidenceAnalysis(text);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -932,17 +605,7 @@ export async function analyzeEvidence(
     }
 }
 
-export interface WinstonStarResult {
-    original_text: string;
-    elements: {
-        slogan: { present: boolean; content: string; suggestion: string };
-        symbol: { present: boolean; content: string; suggestion: string };
-        salient: { present: boolean; content: string; suggestion: string };
-        surprise: { present: boolean; content: string; suggestion: string };
-        story: { present: boolean; content: string; suggestion: string };
-    };
-    overall_score: number;
-}
+
 
 export async function analyzeWinstonStar(
     text: string,
@@ -952,34 +615,7 @@ export async function analyzeWinstonStar(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个沟通专家，擅长使用“温斯顿之星”（Winston's Star）模型来提升沟通的吸引力。
-请分析用户提供的文本，检查是否包含以下五个要素：
-1. Slogan (口号/金句)：是否有一句朗朗上口的总结性语句？
-2. Symbol (象征/符号)：是否有可视化的比喻或象征？
-3. Salient (突出的核心点)：核心观点是否突出？
-4. Surprise (惊奇/新知)：是否提供了反直觉的数据、新观点或令人惊讶的事实？
-5. Story (故事/案例)：是否讲述了具体生动的故事或案例？
-
-对于每个要素，判断是否存在，提取存在的内容，或给出改进建议。
-返回 JSON 格式：
-{
-  "original_text": "...",
-  "elements": {
-    "slogan": { "present": false, "content": "", "suggestion": "建议提炼一句朗朗上口的各种..." },
-    "symbol": { "present": true, "content": "把项目比作引擎", "suggestion": "" },
-    ...
-  },
-  "overall_score": 60
-}`
-        },
-        {
-            role: "user",
-            content: `请分析这段文本的吸引力：\n${text}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.winstonStar(text);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -989,16 +625,7 @@ export async function analyzeWinstonStar(
     }
 }
 
-export interface AuthenticityResult {
-    original_text: string;
-    score: number; // 0-100 (100 = Very Real/Authentic, 0 = Full of Jargon/BS)
-    issues: Array<{
-        segment: string;
-        type: 'cliche' | 'jargon' | 'empty'; // 陈词滥调 | 堆砌行话 | 空洞废话
-        suggestion: string;
-    }>;
-    comment: string;
-}
+
 
 export async function checkAuthenticity(
     text: string,
@@ -1008,29 +635,7 @@ export async function checkAuthenticity(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个“废话探测器”和“真实性”捍卫者，类似于 MIT 教授强调的 "True! True! True!"。
-请检查用户文本，找出那些“假大空”、陈词滥调、为了显得专业而堆砌的行话（Jargon）或空洞的废话。
-你需要严厉地指出这些问题，并建议更朴实、更具体、更真诚的表达方式。
-
-返回 JSON 格式：
-{
-  "original_text": "...",
-  "score": 40, // 分数越低表示废话越多
-  "issues": [
-    { "segment": "协同范式转移", "type": "jargon", "suggestion": "直接说‘一起改变做事情的方法’" },
-    { "segment": "狠抓落实", "type": "cliche", "suggestion": "具体说‘制定了每周检查制度’" }
-  ],
-  "comment": "整段话充满了正确的废话，没有信息量。"
-}`
-        },
-        {
-            role: "user",
-            content: `请检测这段话的“含真率”（真实性）：\n${text}`
-        }
-    ];
+    const messages = TRAINING_PROMPTS.authenticity(text);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -1048,22 +653,7 @@ export async function chatWithDocument(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个专业的公文写作助手。以下是用户正在编辑的文档内容：
----
-${documentContext.slice(0, 10000)}
----
-请基于以上文档内容回答用户的问题。如果问题与文档无关，请委婉告知并尝试提供通用的公文写作建议。回复请保持专业、严谨且富有建设性。
-
-**来源标注规则（必须遵守）**：
-- 当你引用、推荐句子或词语时，如果内容来自知识库中的具体文件，请在引用后标注来源文件名，格式为：——出自《文件名》
-- 如果内容不来自任何具体文件（即你基于通用知识生成的），请标注：——依据人工智能整理
-- 每条推荐的句子或词语都要有来源标注，紧跟在内容之后`
-        },
-        ...history
-    ];
+    const messages = PROMPTS.docChat(documentContext, history);
 
     try {
         const text = await callChatCompletion(messages, config, undefined);
@@ -1076,18 +666,7 @@ ${documentContext.slice(0, 10000)}
     }
 }
 
-export interface AuditResult {
-    score: number;
-    dimensions: {
-        logic: { score: number; comment: string };
-        format: { score: number; comment: string };
-        wording: { score: number; comment: string };
-        brevity: { score: number; comment: string };
-        accuracy: { score: number; comment: string };
-    };
-    overall_comment: string;
-    suggestions: string[];
-}
+
 
 export async function deepAuditDocument(
     text: string,
@@ -1097,32 +676,7 @@ export async function deepAuditDocument(
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
-    const messages: ChatMessage[] = [
-        {
-            role: "system",
-            content: `你是一个极其严苛且专业的公文审计专家。请从以下五个维度对文本进行深度诊断并打分：
-1. **逻辑结构 (Logic)**：核心观点是否突出，论证是否严密。
-2. **格式规范 (Format)**：是否符合政府公文行文习惯与排版逻辑。
-3. **用词精准 (Wording)**：是否存在错别字、口语化表达、用词不当。
-4. **简洁度 (Brevity)**：是否存在冗余内容或废话。
-5. **严谨性 (Accuracy)**：语法是否正确，事实描述是否准确。
-
-请返回严格的 JSON 格式（其中 suggestions 需给出具体的修改点）：
-{
-  "score": 总体分值,
-  "dimensions": {
-    "logic": { "score": 80, "comment": "..." },
-    "format": { "score": 90, "comment": "..." },
-    "wording": { "score": 85, "comment": "..." },
-    "brevity": { "score": 85, "comment": "..." },
-    "accuracy": { "score": 85, "comment": "..." }
-  },
-  "overall_comment": "总评...",
-  "suggestions": ["发现错别字'X'，应为'Y'", "第二段逻辑跳跃，建议增加过渡", "语法错误：'...'成分残缺"]
-}`
-        },
-        { role: "user", content: `请审计以下公文：\n${text}` }
-    ];
+    const messages = TRAINING_PROMPTS.audit(text);
 
     try {
         const content = await callChatCompletion(messages, config, { type: "json_object" });
@@ -1131,15 +685,7 @@ export async function deepAuditDocument(
 }
 
 
-export interface AssociativeSentence {
-    text: string;       // 完整句子，含【关键词】标记
-    keywords: string[]; // 从 text 中提取的关键词，供单独点击插入
-}
 
-export interface AssociativeSuggestion {
-    directions: string[];
-    sentences: AssociativeSentence[];
-}
 
 // 解析可能带有 【词】 标记的句子（兼容纯字符串旧格式）
 function normalizeAssociativeSentence(raw: unknown): AssociativeSentence | null {
@@ -1181,51 +727,7 @@ function normalizeAssociativeResult(raw: unknown): AssociativeSuggestion | null 
 function buildAssociativeMessages(textContext: string, includeDirections: boolean, sentenceCount: number): ChatMessage[] {
     const longContext = textContext.slice(-800);
     const shortQuery = textContext.slice(-60).trim() || "公文";
-
-    const systemContent = includeDirections
-        ? `你是专业的文献检索与批注引擎。你的任务是从知识库中寻找与用户当前正在撰写的内容高度相关的原有句子，并进行摘录。
-
-【背景参考】用户前文内容如下（供参考写作主题，无需逐词匹配）：
----
-${longContext}
----
-
-**核心准则（重要！重要！重要！）**：
-必须【原句摘录】知识库中的内容，绝对禁止你自己编造、改写或生成新句子！如果知识库中相关原句不足，请只返回你能找到的数量，宁缺毋滥。
-特别注意：如果知识库中完全找不到任何相关的句子，请在 sentences 数组中仅返回一条：{"text": "未找到原句", "keywords": []}
-
-**工作步骤**：
-1. 分析用户的最新提问短语，提取核心名词概念（如"产业大脑"、"数字化转型"等）。
-2. 在由系统附加给你的知识库文档中，精准检索包含这些核心名词概念的段落。
-3. 提取具有参考价值的 ${sentenceCount} 条完整原句（字数不宜过长，单句即可）。
-4. 在摘录的原句中，挑出 1-2 个极具公文表现力的高级词汇（四字成语、专业术语等），用【】包裹进行标注。例如：坚持【问题导向】，持续深化【改革攻坚】。
-5. 顺带基于提取的概念，给出 2-3 个接下来可以续写的写作方向建议，每条不超过20字。
-
-返回 JSON 格式：
-{"directions": ["方向1的建议", "方向2的建议"], "sentences": [{"text": "摘录的原文句子，包含【好词】", "keywords": ["好词1", "好词2"]}, ...]}\``
-        : `你是专业的文献检索与批注引擎。你的任务是从知识库中寻找与用户当前正在撰写的内容高度相关的原有句子，并进行摘录。
-
-【背景参考】用户前文内容如下（供参考写作主题，无需逐词匹配）：
----
-${longContext}
----
-
-**核心准则（重要！重要！重要！）**：
-必须【原句摘录】知识库中的内容，绝对禁止你自己编造、改写或生成新句子！如果知识库中有关联的原句不够，就只返回实际找到的条数。
-特别注意：如果知识库中完全找不到任何相关的句子，请在 sentences 数组中仅返回一条：{"text": "未找到原句", "keywords": []}
-
-**工作步骤**：
-1. 分析用户的最新提问短语，提取核心名词概念。
-2. 在你的知识库背景资料中寻找相关的完整原句并原封不动地摘录（最高提取 ${sentenceCount} 条）。
-3. 在摘录的原句中，寻找 1-2 个高级词汇（高频公文词组或成语），用【】标注。例如：在推进【数字化转型】的过程中，要【统筹兼顾】多方诉求。
-
-返回 JSON 格式：
-{"sentences": [{"text": "含【词】的摘录原句", "keywords": ["词1", "词2"]}, ...]}\``;
-
-    return [
-        { role: "system", content: systemContent },
-        { role: "user", content: shortQuery } // Purely the search term, absolutely zero noise instruction.
-    ];
+    return PROMPTS.associative(longContext, shortQuery, includeDirections, sentenceCount);
 }
 
 export async function generateAssociativeSuggestions(
@@ -1275,4 +777,36 @@ export async function generateAssociativeSuggestions(
 
     if (allSentences.length === 0 && finalDirections.length === 0) return null;
     return { directions: finalDirections, sentences: allSentences };
+}
+
+/**
+ * 智能写作补全 (generateCompletion) — 快速画布「AI 补全」
+ * 基于 AnythingLLM 知识库，为光标前文生成内联续写建议
+ */
+export async function generateCompletion(
+    precedingText: string,
+    overrides?: { apiKey?: string; endpoint?: string; model?: string }
+): Promise<string | null> {
+    const config = getAIConfig('anythingllm', overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages = COMPLETION_PROMPTS.complete(precedingText);
+
+    try {
+        // 低温度保证续写的确定性，超时3秒则放弃（避免阻塞光标）
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 8000);
+        const content = await callChatCompletion(messages, config, undefined, 0.2)
+            .finally(() => window.clearTimeout(timer));
+        if (!content) return null;
+
+        // 去除引号、书名号、空白
+        const cleaned = content
+            .trim()
+            .replace(/^["'\u201c\u300c\u300e]|["'\u201d\u300d\u300f]$/g, '')
+            .trim();
+        return cleaned.length > 0 ? cleaned : null;
+    } catch {
+        return null;
+    }
 }

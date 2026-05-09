@@ -21,9 +21,9 @@ import {
     type ContextualPractice
 } from './ai-types';
 export * from './ai-types';
-import { PROMPTS } from './prompts';
-import { TRAINING_PROMPTS } from './training-prompts';
-import { COMPLETION_PROMPTS } from './completion-prompts';
+import { PROMPTS } from './智能画布-提示词';
+import { TRAINING_PROMPTS } from './特训营-提示词';
+import { COMPLETION_PROMPTS } from './智能补全-提示词';
 
 export function getAIConfig(
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',

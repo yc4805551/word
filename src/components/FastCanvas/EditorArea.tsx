@@ -125,7 +125,7 @@ export default function EditorArea() {
                 } finally {
                     isFetchingRef.current = false;
                 }
-            }, 900); // 停顿 900ms 后触发
+            }, 400); // 停顿 400ms 后触发
         };
 
         editor.on('update', handleUpdate);

@@ -191,7 +191,8 @@ async function callChatCompletion(
     messages: ChatMessage[],
     config: AIConfig,
     schema?: unknown,
-    temperature: number = 0.7
+    temperature: number = 0.7,
+    maxTokens?: number
 ): Promise<string | null> {
 
     // If user explicitly set .../openai/ endpoint, we TRY to use OpenAI compat, but if it fails with CORS (which we can't detect easily beforehand), 
@@ -217,12 +218,16 @@ async function callChatCompletion(
 
         const payload: {
             contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>;
-            generationConfig: { temperature: number; response_mime_type?: string };
+            generationConfig: { temperature: number; response_mime_type?: string; maxOutputTokens?: number };
             system_instruction?: { parts: Array<{ text: string }> };
         } = {
             contents: geminiContents,
             generationConfig: { temperature: temperature }
         };
+
+        if (maxTokens) {
+            payload.generationConfig.maxOutputTokens = maxTokens;
+        }
 
         if (systemMsg) {
             payload.system_instruction = { parts: [{ text: systemMsg.content }] };
@@ -257,6 +262,10 @@ async function callChatCompletion(
 
         if (schema) {
             payload.response_format = schema;
+        }
+
+        if (maxTokens) {
+            payload.max_tokens = maxTokens;
         }
 
         const response = await fetchWithTimeout(config.endpoint, {
@@ -798,10 +807,10 @@ export async function generateCompletion(
     const messages = COMPLETION_PROMPTS.complete(precedingText);
 
     try {
-        // 低温度保证续写的确定性，超时3秒则放弃（避免阻塞光标）
+        // 低温度保证续写的确定性，超时3秒则放弃（避免阻塞光标），限制极短的输出长度(50)以提升速度
         const controller = new AbortController();
         const timer = window.setTimeout(() => controller.abort(), 8000);
-        const content = await callChatCompletion(messages, config, undefined, 0.2)
+        const content = await callChatCompletion(messages, config, undefined, 0.2, 50)
             .finally(() => window.clearTimeout(timer));
         if (!content) return null;
 

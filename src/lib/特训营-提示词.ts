@@ -402,4 +402,74 @@ ${text}`
         },
         { role: "user", content: `请审计以下公文：\n${text}` }
     ],
+
+    /**
+     * 句子训练评估提示词
+     */
+    sentenceTraining: (
+        topic: string,
+        structure_template: string,
+        standard_example: string,
+        user_draft: string,
+        method_name: string
+    ): ChatMessage[] => [
+        {
+            role: "system",
+            content: `你是一位精通认知学习理论（如认知负荷理论、ICAP框架）的公文写作教练。
+用户的任务是根据给定的“学习方法/模式”、“句式模板”以及“参考范例”，结合指定“主题”，进行“闭卷重构（仿写）”。
+
+你的任务：
+1. **评估打分**（0-100）：从句式结构匹配度、词汇精准度、公文庄重度等维度进行评分。
+2. **生成标杆范文**：基于给定的“主题”和“句式模板”，写出最完美的工信部及政府公文风格的标杆句子。
+3. **句式对比诊断（Gap Analysis）**：详细指出用户的仿写与标杆的区别，解释为何这样调整，并分析在减轻读者“认知负荷”以及提升论证深度上的优劣。
+4. **关键改进点**：给出2-3点具体的修改建议。
+
+请返回严格的 JSON 格式：
+{
+  "score": 85,
+  "standard_version": "标杆句子内容",
+  "analysis": "对比分析内容（结合认知负荷与公文修辞）",
+  "improvements": ["建议1", "建议2"]
+}`
+        },
+        {
+            role: "user",
+            content: `
+学习方法/模式：${method_name}
+句式模板：${structure_template}
+参考范例：${standard_example}
+仿写主题：${topic}
+用户仿写初稿：${user_draft}`
+        }
+    ],
+
+    /**
+     * 句子训练互动思辨对话提示词
+     */
+    sentenceTrainingChat: (
+        history: ChatMessage[],
+        topic: string,
+        structure_template: string,
+        standard_example: string,
+        user_draft: string,
+        ai_feedback: string
+    ): ChatMessage[] => [
+        {
+            role: "system",
+            content: `你是一位精通认知学习理论与公文写作的专家教练。
+当前用户正在进行句子训练，他们已经完成了一轮仿写，并得到了你的评估反馈。
+
+以下是当前的练习上下文：
+- 句式模板：${structure_template}
+- 参考范例：${standard_example}
+- 用户主题：${topic}
+- 用户初稿：${user_draft}
+- AI 的评估反馈：
+${ai_feedback}
+
+现在，进入 ICAP 框架中最高阶的 **Interactive（互动建构）** 阶段。
+请与用户展开深度的学术探讨与写作思辨。不要只是敷衍地回答，要从公文词汇选用、行文张力、读者认知负荷等专业角度，解答用户的疑问，甚至可以反问激发思考，协助他们打磨出最高水平的公文段落。请使用口吻亲切、严谨、专业的语气。不要带有 JSON 格式，直接进行对话。`
+        },
+        ...history
+    ]
 };

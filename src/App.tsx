@@ -9,6 +9,7 @@ import Week4 from './pages/Week4';
 import Week5 from './pages/Week5';
 import Week6 from './pages/Week6';
 import FastCanvas from './pages/FastCanvas';
+import SentenceTraining from './pages/SentenceTraining';
 
 import { SettingsProvider } from './context/SettingsContext';
 import { useAuth } from './hooks/useAuth';
@@ -34,6 +35,7 @@ function App() {
             <Route path="/week5" element={<Week5 />} />
             <Route path="/week6" element={<Week6 />} />
             <Route path="/canvas" element={<FastCanvas />} />
+            <Route path="/sentence-training" element={<SentenceTraining />} />
           </Routes>
         </Layout>
       </HashRouter>

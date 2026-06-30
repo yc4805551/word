@@ -161,3 +161,12 @@ export interface ContextualPractice {
     target: string;
     hint: string;
 }
+
+export interface SentenceFeedback {
+    score: number;
+    standard_version: string;
+    analysis: string;
+    improvements: string[];
+    cognitive_notes?: string;
+}
+

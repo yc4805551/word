@@ -18,7 +18,8 @@ import {
     type WinstonStarResult,
     type SmartWeek1Training,
     type SmartLesson,
-    type ContextualPractice
+    type ContextualPractice,
+    type SentenceFeedback
 } from './ai-types';
 export * from './ai-types';
 import { PROMPTS } from './智能画布-提示词';
@@ -825,3 +826,52 @@ export async function generateCompletion(
         return null;
     }
 }
+
+export async function getSentenceTrainingFeedback(
+    topic: string,
+    structure_template: string,
+    standard_example: string,
+    user_draft: string,
+    method_name: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
+    overrides?: { apiKey?: string; endpoint?: string; model?: string }
+): Promise<SentenceFeedback | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const messages = TRAINING_PROMPTS.sentenceTraining(topic, structure_template, standard_example, user_draft, method_name);
+
+    try {
+        const content = await callChatCompletion(messages, config, { type: "json_object" });
+        return content ? safeJsonParse<SentenceFeedback>(content) : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function chatAboutSentence(
+    history: ChatMessage[],
+    topic: string,
+    structure_template: string,
+    standard_example: string,
+    user_draft: string,
+    ai_feedback: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
+    overrides?: { apiKey?: string; endpoint?: string; model?: string }
+): Promise<AIResponse> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
+
+    const messages = TRAINING_PROMPTS.sentenceTrainingChat(history, topic, structure_template, standard_example, user_draft, ai_feedback);
+
+    try {
+        const text = await callChatCompletion(messages, config, undefined);
+        if (!text) return { success: false, error: "AI 返回了空消息。" };
+        return { success: true, data: text };
+    } catch (e) {
+        const msg = getErrorMessage(e);
+        if (msg.includes('AbortError')) return { success: false, error: '请求超时，请稍后重试。' };
+        return { success: false, error: msg || "连接 AI 服务失败。" };
+    }
+}
+

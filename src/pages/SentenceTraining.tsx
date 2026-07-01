@@ -29,6 +29,7 @@ export default function SentenceTraining() {
 
     // Step 1: Observe & Deconstruct states
     const [clickedKeywordIds, setClickedKeywordIds] = useState<number[]>([]);
+    const [clickedWrongIds, setClickedWrongIds] = useState<number[]>([]);
     const [feynmanExplanation, setFeynmanExplanation] = useState('');
     const totalKeywordsCount = activeTemplate?.segments.filter(s => s.isKeyword).length || 0;
     const isStep1Unlocked = clickedKeywordIds.length === totalKeywordsCount && feynmanExplanation.trim().length >= 5;
@@ -52,6 +53,7 @@ export default function SentenceTraining() {
         if (activeTemplate) {
             setStep('observe');
             setClickedKeywordIds([]);
+            setClickedWrongIds([]);
             setFeynmanExplanation('');
             const presets = activeTemplate.presetTopics || ["乡村振兴", "数字转型", "生态治理", "体制改革"];
             setSelectedTopic(presets[0]);
@@ -126,12 +128,21 @@ export default function SentenceTraining() {
 
     // Step 1 helper: handle segment click
     const handleSegmentClick = (segment: Segment) => {
-        if (!segment.isKeyword || step !== 'observe') return;
+        if (step !== 'observe') return;
 
-        if (clickedKeywordIds.includes(segment.id!)) {
-            setClickedKeywordIds(prev => prev.filter(id => id !== segment.id));
+        if (segment.isKeyword) {
+            if (clickedKeywordIds.includes(segment.id!)) {
+                setClickedKeywordIds(prev => prev.filter(id => id !== segment.id));
+            } else {
+                setClickedKeywordIds(prev => [...prev, segment.id!]);
+            }
         } else {
-            setClickedKeywordIds(prev => [...prev, segment.id!]);
+            if (!clickedWrongIds.includes(segment.id!)) {
+                setClickedWrongIds(prev => [...prev, segment.id!]);
+                setTimeout(() => {
+                    setClickedWrongIds(prev => prev.filter(id => id !== segment.id));
+                }, 800);
+            }
         }
     };
 
@@ -366,7 +377,7 @@ export default function SentenceTraining() {
                             </div>
 
                             {/* Step 1: Observe */}
-                            <div className={cn("transition-all duration-500", step === 'observe' ? 'opacity-100' : 'opacity-50 pointer-events-none')}>
+                            <div className={cn("transition-all duration-500", step === 'observe' ? 'block' : 'hidden')}>
                                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
                                     <div className="flex items-center justify-between">
                                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -381,17 +392,18 @@ export default function SentenceTraining() {
                                     <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 leading-loose text-lg official-font text-slate-700 select-none">
                                         {activeTemplate.segments.map((segment) => {
                                             const isClicked = clickedKeywordIds.includes(segment.id!);
+                                            const isWrongClicked = clickedWrongIds.includes(segment.id!);
                                             return (
                                                 <span
                                                     key={segment.id}
                                                     onClick={() => handleSegmentClick(segment)}
                                                     className={cn(
-                                                        "transition-all duration-300 mx-0.5",
-                                                        segment.isKeyword ? "cursor-pointer border-b-2" : "",
-                                                        segment.isKeyword && !isClicked ? "border-blue-400 text-slate-800 hover:bg-blue-100/50" : "",
-                                                        segment.isKeyword && isClicked ? "border-emerald-500 bg-emerald-100 text-emerald-800 font-bold" : ""
+                                                        "transition-all duration-300 mx-0.5 px-1 rounded cursor-pointer",
+                                                        (!isClicked && !isWrongClicked) ? "hover:bg-slate-200/60" : "",
+                                                        segment.isKeyword && isClicked ? "border-b-2 border-emerald-500 bg-emerald-100 text-emerald-800 font-bold" : "",
+                                                        !segment.isKeyword && isWrongClicked ? "bg-red-100 text-red-800 transition-colors" : ""
                                                     )}
-                                                    title={segment.isKeyword && !isClicked ? "点击标记结构词" : ""}
+                                                    title={!isClicked ? "点击标记结构词" : ""}
                                                 >
                                                     {segment.text}
                                                 </span>
@@ -424,7 +436,7 @@ export default function SentenceTraining() {
                             </div>
 
                             {/* Step 2: Reconstruct */}
-                            <div className={cn("transition-all duration-500", step === 'reconstruct' ? 'opacity-100' : (step === 'feedback' ? 'hidden' : 'hidden'))}>
+                            <div className={cn("transition-all duration-500", step === 'reconstruct' ? 'block' : 'hidden')}>
                                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
                                     <div className="flex items-center justify-between">
                                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -500,7 +512,7 @@ export default function SentenceTraining() {
                             </div>
 
                             {/* Step 3: Feedback (Only shown when available) */}
-                            <div className={cn("transition-all duration-500", step === 'feedback' ? 'opacity-100' : 'hidden')}>
+                            <div className={cn("transition-all duration-500", step === 'feedback' ? 'block' : 'hidden')}>
                                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col min-h-[600px] overflow-hidden">
                                     <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                         <h3 className="font-bold text-slate-800 flex items-center gap-2">

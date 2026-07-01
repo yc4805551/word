@@ -681,24 +681,110 @@ export async function chatWithDocument(
     }
 }
 
+/**
+ * 从 AnythingLLM「求是杂志」工作区检索真实句子素材（RAG 检索增强生成）
+ */
+async function searchQiushiKnowledgeBase(
+    query: string,
+    overrides?: { apiKey?: string; endpoint?: string }
+): Promise<string | null> {
+    const config = getAIConfig('anythingllm', overrides);
+
+    // 从 OpenAI 兼容端点中提取基础 URL
+    let baseUrl = config.endpoint
+        .replace(/\/api\/v1\/openai\/chat\/completions\/?$/, '')
+        .replace(/\/chat\/completions\/?$/, '')
+        .replace(/\/v1\/?$/, '');
+    if (!baseUrl) baseUrl = 'https://ycoffice.tail36f59d.ts.net';
+
+    // AnythingLLM 工作区聊天端点，用于 RAG 检索
+    // 尝试多种 slug 格式：中文名称、URL编码、拼音
+    const slugCandidates = ['求是杂志', encodeURIComponent('求是杂志'), 'qiushizazhi'];
+
+    for (const slug of slugCandidates) {
+        const workspaceChatUrl = `${baseUrl}/api/v1/workspace/${slug}/chat`;
+        try {
+            const response = await fetchWithTimeout(workspaceChatUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`,
+                    'accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: query,
+                    mode: 'chat'
+                }),
+            }, 30000);
+
+            if (!response.ok) {
+                console.warn(`[RAG] AnythingLLM workspace slug "${slug}" failed:`, response.status);
+                continue; // try next slug
+            }
+
+        const data = await response.json();
+        const textResponse = data?.textResponse || data?.text || data?.choices?.[0]?.message?.content;
+        if (!textResponse || typeof textResponse !== 'string') return null;
+
+        console.log('[RAG] Retrieved from knowledge base:', textResponse.slice(0, 200) + '...');
+        return textResponse;
+        } catch (e) {
+            console.warn(`[RAG] Slug "${slug}" error:`, e);
+            continue; // try next slug
+        }
+    }
+    // 所有 slug 候选格式均失败
+    console.warn('[RAG] All workspace slug candidates failed');
+    return null;
+}
+
 export async function chatForSentenceGeneration(
     history: ChatMessage[],
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
     overrides?: { apiKey?: string; endpoint?: string; model?: string }
 ): Promise<AIResponse> {
     const config = getAIConfig(provider, overrides);
-    if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
+    if (!normalizeApiKey(config.apiKey)) {
+        return { success: false, error: `未配置 ${provider} 的 API Key，请在"系统设置"中填写。` };
+    }
 
-    const messages = TRAINING_PROMPTS.sentenceGenerationChat(history);
+    // 获取用户最新消息，判断是否需要触发 RAG 检索
+    const lastUserMsg = [...history].reverse().find(m => m.role === 'user');
+    const lastUserText = lastUserMsg?.content?.trim() || '';
+
+    // 判断是否是“选择”指令（如“选1”）或者直接给的长句子
+    const isSelectionReply = /^(选|我选|第|就|用|处理|转为|帮我).{0,5}[1-3一二三]/.test(lastUserText)
+        || /^[1-3]$/.test(lastUserText);
+    const isDirectSentence = lastUserText.length > 40;
+    const isFirstRound = history.filter(m => m.role === 'assistant').length === 0;
+
+    // 第一阶段：首轮主题查询时，从知识库检索真实句子
+    let ragContext = '';
+    if (!isSelectionReply && !isDirectSentence && lastUserText.length > 0 && isFirstRound) {
+        const anythingllmConfig = getAIConfig('anythingllm');
+        const ragQuery = `请从知识库中检索与"${lastUserText}"相关的公文段落。我需要完整的、结构丰满的长句（60-150字），请直接引用原文中的句子，不要自己编造。请列出3-5个最相关的完整句子，每个句子单独一行。`;
+        const retrieved = await searchQiushiKnowledgeBase(ragQuery, {
+            apiKey: anythingllmConfig.apiKey,
+            endpoint: anythingllmConfig.endpoint,
+        });
+        if (retrieved) {
+            ragContext = retrieved;
+        }
+    }
+
+    // 第二阶段：构建带或不带 RAG 上下文的提示词
+    const messages = ragContext
+        ? TRAINING_PROMPTS.sentenceGenerationChatWithRAG(history, ragContext)
+        : TRAINING_PROMPTS.sentenceGenerationChat(history);
 
     try {
         const text = await callChatCompletion(messages, config, undefined);
-        if (!text) return { success: false, error: "AI 返回了空消息。" };
+        if (!text) return { success: false, error: 'AI 返回了空消息。' };
         return { success: true, data: text };
     } catch (e) {
         const msg = getErrorMessage(e);
         if (msg.includes('AbortError')) return { success: false, error: '请求超时，请稍后重试。' };
-        return { success: false, error: msg || "连接 AI 服务失败。" };
+        return { success: false, error: msg || '连接 AI 服务失败。' };
     }
 }
 

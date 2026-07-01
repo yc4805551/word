@@ -292,9 +292,11 @@ export default function SentenceTraining() {
                         {/* If in chat mode for generation */}
                         <div className="flex-1 overflow-y-auto space-y-3 mb-3 pb-2 flex flex-col">
                             {genChatHistory.length === 0 && (
-                                <div className="text-xs text-slate-500 text-center mt-10">
+                                <div className="text-xs text-slate-500 text-center mt-10 space-y-2">
                                     <Sparkles className="w-6 h-6 mx-auto mb-2 text-teal-400 opacity-50" />
-                                    向我描述您想练什么样的公文句式？例如：“排比句”、“对策部署”、“高质量发展主题”...
+                                    <p>向我描述您想练什么样的公文句式？</p>
+                                    <p className="text-slate-400">例如：“排比句”、“对策部署”...</p>
+                                    <p className="text-teal-500 font-medium mt-1">💡 也可以直接粘贴句子转为训练！</p>
                                 </div>
                             )}
                             {genChatHistory.map((msg, index) => (
@@ -319,13 +321,13 @@ export default function SentenceTraining() {
                         </div>
 
                         <div className="flex gap-2 shrink-0">
-                            <input
-                                type="text"
+                            <textarea
                                 value={genChatInput}
                                 onChange={(e) => setGenChatInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendGenChat()}
-                                placeholder="描述你想练的句式..."
-                                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-teal-500 text-xs"
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendGenChat(); } }}
+                                placeholder="描述句式 或 直接粘贴句子..."
+                                rows={1}
+                                className="flex-1 px-3 py-2 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-teal-500 text-xs resize-none max-h-24 overflow-y-auto"
                             />
                             <button
                                 onClick={handleSendGenChat}

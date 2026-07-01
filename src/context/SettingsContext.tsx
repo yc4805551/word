@@ -14,6 +14,12 @@ interface SettingsContextType {
     addToVocab: (words: string[]) => void;
     models: Record<AIProvider, string>;
     setModel: (provider: AIProvider, model: string) => void;
+    githubToken: string;
+    setGithubToken: (token: string) => void;
+    githubOwner: string;
+    setGithubOwner: (owner: string) => void;
+    githubRepo: string;
+    setGithubRepo: (repo: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -59,6 +65,25 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // In this design, we'll let Week 2 load the default file, but if user uploads, it overrides/appends here.
     const [vocabList, setVocabList] = useState<string[]>([]);
 
+    const [githubToken, setGithubTokenState] = useState<string>(localStorage.getItem('github_token') || '');
+    const [githubOwner, setGithubOwnerState] = useState<string>(localStorage.getItem('github_owner') || 'yc4805551');
+    const [githubRepo, setGithubRepoState] = useState<string>(localStorage.getItem('github_repo') || 'word');
+
+    const setGithubToken = (token: string) => {
+        setGithubTokenState(token);
+        localStorage.setItem('github_token', token);
+    };
+
+    const setGithubOwner = (owner: string) => {
+        setGithubOwnerState(owner);
+        localStorage.setItem('github_owner', owner);
+    };
+
+    const setGithubRepo = (repo: string) => {
+        setGithubRepoState(repo);
+        localStorage.setItem('github_repo', repo);
+    };
+
     useEffect(() => {
         localStorage.setItem('ai_provider', aiProvider);
     }, [aiProvider]);
@@ -97,7 +122,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             setVocabList,
             addToVocab,
             models,
-            setModel: handleSetModel
+            setModel: handleSetModel,
+            githubToken,
+            setGithubToken,
+            githubOwner,
+            setGithubOwner,
+            githubRepo,
+            setGithubRepo
         }}>
             {children}
         </SettingsContext.Provider>

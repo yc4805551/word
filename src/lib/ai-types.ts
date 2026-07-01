@@ -3,6 +3,30 @@ export interface ChatMessage {
     content: string;
 }
 
+export interface Segment {
+    text: string;
+    isKeyword: boolean;
+    id?: number;
+}
+
+export interface SentenceTemplate {
+    name: string;
+    methodName: string;
+    explanation: string;
+    original: string;
+    template: string;
+    keywords: string[];
+    segments: Segment[];
+    presetTopics?: string[];
+}
+
+export interface SentenceFeedback {
+    score: number;
+    standard_version: string;
+    analysis: string;
+    improvements: string[];
+}
+
 export interface AIConfig {
     apiKey: string;
     endpoint: string;

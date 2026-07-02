@@ -3,6 +3,23 @@ import { useSettings } from '../context/SettingsContext';
 import { getSentenceTrainingFeedback, chatAboutSentence, chatForSentenceGeneration, type SentenceFeedback, type ChatMessage, type SentenceTemplate, type Segment } from '../lib/ai';
 import { appendToGitHubFile } from '../lib/github-sync';
 import { cn } from '../lib/utils';
+
+// 轻量 Markdown 渲染：支持 **bold**、> blockquote、换行
+function renderMarkdown(text: string): string {
+    return text
+        .split('\n')
+        .map(line => {
+            // blockquote
+            if (line.startsWith('> ')) {
+                const inner = line.slice(2).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                return `<blockquote>${inner}</blockquote>`;
+            }
+            // bold
+            const processed = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            return processed === '' ? '<br/>' : `<span>${processed}</span>`;
+        })
+        .join('\n');
+}
 import {
     Brain,
     Sparkles,
@@ -309,7 +326,10 @@ export default function SentenceTraining() {
                                             : "bg-slate-100 text-slate-800 self-start mr-auto rounded-tl-none border border-slate-200"
                                     )}
                                 >
-                                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                                    <div
+                                        className="markdown-body"
+                                        dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                                    />
                                 </div>
                             ))}
                             {genChatLoading && (
@@ -616,7 +636,7 @@ export default function SentenceTraining() {
                                                             <div className="text-[10px] opacity-60 mb-1 font-bold">
                                                                 {msg.role === 'user' ? '用户 (我)' : 'AI 公文特训教练'}
                                                             </div>
-                                                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                                                             <div className="markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
                                                         </div>
                                                     ))}
                                                     {chatLoading && (

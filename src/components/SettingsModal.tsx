@@ -205,7 +205,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         type="password"
                                         value={localKeys[aiProvider]}
                                         onChange={(e) => setLocalKeys(prev => ({ ...prev, [aiProvider]: e.target.value }))}
-                                        placeholder="API Key..."
+                                        placeholder="API Key（非 sk- 格式也支持）"
                                         className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                                     />
                                 </div>
@@ -215,7 +215,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         type="text"
                                         value={localEndpoints[aiProvider]}
                                         onChange={(e) => setLocalEndpoints(prev => ({ ...prev, [aiProvider]: e.target.value }))}
-                                        placeholder="https://..."
+                                        placeholder={import.meta.env.VITE_OPENAI_ENDPOINT || "https://zhenze-huhehaote.cmecloud.cn/v1/chat/completions"}
                                         className="w-full px-3 py-1.5 border border-slate-200 rounded text-[11px] focus:ring-1 focus:ring-blue-100 outline-none"
                                     />
                                 </div>

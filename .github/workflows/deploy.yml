@@ -32,6 +32,23 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
+          VITE_OPENAI_ENDPOINT: ${{ secrets.VITE_OPENAI_ENDPOINT }}
+          VITE_OPENAI_MODEL: ${{ secrets.VITE_OPENAI_MODEL }}
+          VITE_DEEPSEEK_API_KEY: ${{ secrets.VITE_DEEPSEEK_API_KEY }}
+          VITE_DEEPSEEK_ENDPOINT: ${{ secrets.VITE_DEEPSEEK_ENDPOINT }}
+          VITE_DEEPSEEK_MODEL: ${{ secrets.VITE_DEEPSEEK_MODEL }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_ALI_API_KEY: ${{ secrets.VITE_ALI_API_KEY }}
+          VITE_ALI_ENDPOINT: ${{ secrets.VITE_ALI_ENDPOINT }}
+          VITE_ALI_MODEL: ${{ secrets.VITE_ALI_MODEL }}
+          VITE_DOUBAO_API_KEY: ${{ secrets.VITE_DOUBAO_API_KEY }}
+          VITE_DOUBAO_ENDPOINT: ${{ secrets.VITE_DOUBAO_ENDPOINT }}
+          VITE_DOUBAO_MODEL: ${{ secrets.VITE_DOUBAO_MODEL }}
+          VITE_DEPOCR_API_KEY: ${{ secrets.VITE_DEPOCR_API_KEY }}
+          VITE_DEPOCR_ENDPOINT: ${{ secrets.VITE_DEPOCR_ENDPOINT }}
+          VITE_DEPOCR_MODEL: ${{ secrets.VITE_DEPOCR_MODEL }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

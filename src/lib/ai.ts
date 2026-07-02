@@ -698,8 +698,8 @@ async function searchQiushiKnowledgeBase(
     if (!baseUrl) baseUrl = 'https://ycoffice.tail36f59d.ts.net';
 
     // AnythingLLM 工作区聊天端点，用于 RAG 检索
-    // 尝试多种 slug 格式：URL编码、拼音、中文名称
-    const slugCandidates = [encodeURIComponent('求是杂志'), 'qiushizazhi', '求是杂志'];
+    // 尝试多种 slug 格式：拼音、URL编码、中文名称
+    const slugCandidates = ['qstheory', 'qiu-shi-zazhi', encodeURIComponent('求是杂志'), '求是杂志'];
 
     for (const slug of slugCandidates) {
         const workspaceChatUrl = `${baseUrl}/api/v1/workspace/${slug}/chat`;

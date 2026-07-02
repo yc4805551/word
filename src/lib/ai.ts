@@ -35,8 +35,10 @@ export function getAIConfig(
     // Helper to ensure endpoint ends with /chat/completions
     const normalizeEndpoint = (url: string | undefined, defaultUrl: string) => {
         if (!url) return defaultUrl;
-        if (url.includes('/chat/completions')) return url;
-        const base = url.endsWith('/') ? url.slice(0, -1) : url;
+        // 清除非 ASCII 字符，防止 fetch URL 编码报错
+        const cleaned = url.replace(/[^\x20-\x7E]/g, '');
+        if (cleaned.includes('/chat/completions')) return cleaned;
+        const base = cleaned.endsWith('/') ? cleaned.slice(0, -1) : cleaned;
         return `${base}/chat/completions`;
     };
 
@@ -91,7 +93,9 @@ function getErrorMessage(err: unknown) {
 }
 
 function normalizeApiKey(key: unknown) {
-    return typeof key === 'string' ? key.trim() : '';
+    if (typeof key !== 'string') return '';
+    // 移除所有非 ASCII 字符（中文全角引号、不可见字符等），防止 header 编码报错
+    return key.replace(/[^\x20-\x7E]/g, '').trim();
 }
 
 function buildHttpError(status: number, statusText: string, rawBody: string) {
@@ -683,59 +687,34 @@ export async function chatWithDocument(
 
 /**
  * 从 AnythingLLM「求是杂志」工作区检索真实句子素材（RAG 检索增强生成）
+ * 使用 OpenAI 兼容端点（/api/v1/openai/chat/completions），该端点走 validApiKey 中间件，
+ * 与用户已配置的 API Key 认证方式一致，避免 /api/v1/workspace/ 端点的 JWT 403 问题。
  */
 async function searchQiushiKnowledgeBase(
     query: string,
-    overrides?: { apiKey?: string; endpoint?: string }
+    overrides?: { apiKey?: string; endpoint?: string; model?: string }
 ): Promise<string | null> {
     const config = getAIConfig('anythingllm', overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
 
-    // 从 OpenAI 兼容端点中提取基础 URL
-    let baseUrl = config.endpoint
-        .replace(/\/api\/v1\/openai\/chat\/completions\/?$/, '')
-        .replace(/\/chat\/completions\/?$/, '')
-        .replace(/\/v1\/?$/, '');
-    if (!baseUrl) baseUrl = 'https://ycoffice.tail36f59d.ts.net';
+    const ragMessages: ChatMessage[] = [
+        {
+            role: 'system',
+            content: '你是一个公文知识库检索助手。请从知识库中检索与用户查询相关的公文段落。只返回原文中的完整句子，每个句子单独一行，不要编造。如果没有相关内容，请回复"未检索到相关内容"。'
+        },
+        { role: 'user', content: query }
+    ];
 
-    // AnythingLLM 工作区聊天端点，用于 RAG 检索
-    // 尝试多种 slug 格式：拼音、URL编码、中文名称
-    const slugCandidates = ['qstheory', 'qiu-shi-zazhi', encodeURIComponent('求是杂志'), '求是杂志'];
+    try {
+        const content = await callChatCompletion(ragMessages, config, undefined, 0.3);
+        if (!content || content.includes('未检索到相关内容')) return null;
 
-    for (const slug of slugCandidates) {
-        const workspaceChatUrl = `${baseUrl}/api/v1/workspace/${slug}/chat`;
-        try {
-            const response = await fetchWithTimeout(workspaceChatUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.apiKey}`,
-                    'accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: query,
-                    mode: 'chat'
-                }),
-            }, 30000);
-
-            if (!response.ok) {
-                console.warn(`[RAG] AnythingLLM workspace slug "${slug}" failed:`, response.status);
-                continue; // try next slug
-            }
-
-        const data = await response.json();
-        const textResponse = data?.textResponse || data?.text || data?.choices?.[0]?.message?.content;
-        if (!textResponse || typeof textResponse !== 'string') return null;
-
-        console.log('[RAG] Retrieved from knowledge base:', textResponse.slice(0, 200) + '...');
-        return textResponse;
-        } catch (e) {
-            console.warn(`[RAG] Slug "${slug}" error:`, e);
-            continue; // try next slug
-        }
+        console.log('[RAG] Retrieved from knowledge base:', content.slice(0, 200) + '...');
+        return content;
+    } catch (e) {
+        console.warn('[RAG] Knowledge base search failed:', e);
+        return null;
     }
-    // 所有 slug 候选格式均失败
-    console.warn('[RAG] All workspace slug candidates failed');
-    return null;
 }
 
 export async function chatForSentenceGeneration(
@@ -766,6 +745,7 @@ export async function chatForSentenceGeneration(
         const retrieved = await searchQiushiKnowledgeBase(ragQuery, {
             apiKey: anythingllmConfig.apiKey,
             endpoint: anythingllmConfig.endpoint,
+            model: anythingllmConfig.model,
         });
         if (retrieved) {
             ragContext = retrieved;

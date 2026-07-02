@@ -46,7 +46,7 @@ export default function SentenceTraining() {
 
     // Step 1: AI Auto-Analysis states
     const [analysisLoading, setAnalysisLoading] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<{ structure: string; goodWords: string[] } | null>(null);
+    const [analysisResult, setAnalysisResult] = useState<{ skeleton: string; branches: string; markers: string; goodWords: string[] } | null>(null);
     const isStep1Unlocked = analysisResult !== null;
 
     // Step 2: Reconstruct states
@@ -151,15 +151,17 @@ export default function SentenceTraining() {
         if (!activeTemplate) return;
         setAnalysisLoading(true);
         try {
-            const prompt = `请对以下公文长句进行两项分析，以JSON格式返回：
+            const prompt = `请对以下公文长句进行「结构透视三步法」拆解分析，以JSON格式返回：
 句子：「${activeTemplate.original}」
 
 要求：
-1. structure（字符串）：分析该句的句式结构，用简洁的中文说明（如："先破后立式：先指出……的困境，再提出……的方案"）
-2. goodWords（数组，恰好5个）：从句中挑选5个最值得学习的公文好词或短语，每个元素格式为 "词语：说明用法"
+1. skeleton（字符串）：**抽除血肉，只看骨架**——强制找出句子的「主语+谓语（核心动词）+宾语」，即"谁+干了+什么"。这是句子的承重墙。用简洁的中文列出主干，格式如："主语：……，谓语：……，宾语：……"
+2. branches（字符串）：**透视枝叶，检查关节**——把定语（修饰名词）、状语（修饰动词）和补语安回去，说明它们如何精准修饰主干。逐层标注，格式如："定语「……」修饰主语，状语「……」修饰谓语……"
+3. markers（字符串）：**扫描暗门，排查微词**——留意句中的关联词、介词、并列词等，它们决定句子的内在逻辑走向。逐一列出并说明其逻辑功能，格式如："「不仅……更……」表递进；「在……下」表条件"
+4. goodWords（数组，恰好5个）：从句中挑选5个最值得学习的公文好词或短语，每个元素格式为 "词语：说明用法"
 
 仅返回JSON，不要其他内容。示例：
-{"structure":"总分式：先总说目标，再分列三个递进举措","goodWords":["久久为功：形容坚持不懈","提质增效：形容质量和效益双提升","深耕细作：形容精耕细作的工作态度","统筹推进：多任务协调并进","固本培元：巩固根基、培植元气"]}`;
+{"skeleton":"主语：各级党组织，谓语：统筹推进，宾语：高质量发展","branches":"定语「各级」修饰主语限定义范围，状语「在……指引下」修饰谓语点明前提条件，补语「提质增效」补充宾语内涵","markers":"「在……指引下」表条件前提；「统筹推进」中"统筹"表多任务协调；「和」表并列联结","goodWords":["久久为功：形容坚持不懈","提质增效：质量和效益双提升","深耕细作：精耕细作的工作态度","统筹推进：多任务协调并进","固本培元：巩固根基、培植元气"]}`;
 
             const { generateText } = await import('../lib/ai');
             const raw = await generateText(
@@ -168,13 +170,13 @@ export default function SentenceTraining() {
                 { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
             const parsed = JSON.parse(raw.trim().replace(/^```json|```$/g, '').trim());
-            if (parsed.structure && Array.isArray(parsed.goodWords)) {
+            if (parsed.skeleton && parsed.branches && parsed.markers && Array.isArray(parsed.goodWords)) {
                 setAnalysisResult(parsed);
             }
         } catch (e) {
             console.error('Step1 analysis failed', e);
             // fallback: unlock without result
-            setAnalysisResult({ structure: '分析失败，可直接进入下一步', goodWords: [] });
+            setAnalysisResult({ skeleton: '分析失败，可直接进入下一步', branches: '', markers: '', goodWords: [] });
         } finally {
             setAnalysisLoading(false);
         }
@@ -439,14 +441,39 @@ export default function SentenceTraining() {
                                     {/* Analysis results */}
                                     {!analysisLoading && analysisResult && (
                                         <div className="space-y-4">
-                                            {/* 句式结构 */}
+                                            {/* 第一步：骨架 */}
                                             <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
                                                 <div className="flex items-center gap-2 text-sm font-bold text-blue-700">
-                                                    <span className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center text-[11px]">构</span>
-                                                    分析句式结构
+                                                    <span className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center text-[11px]">骨</span>
+                                                    抽除血肉，只看骨架
                                                 </div>
-                                                <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.structure}</p>
+                                                <p className="text-xs text-blue-500/70 mb-1 pl-1">找出「主语+谓语+宾语」——句子的承重墙</p>
+                                                <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.skeleton}</p>
                                             </div>
+
+                                            {/* 第二步：枝叶 */}
+                                            {analysisResult.branches && (
+                                                <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4 space-y-2">
+                                                    <div className="flex items-center gap-2 text-sm font-bold text-amber-700">
+                                                        <span className="w-5 h-5 rounded bg-amber-600 text-white flex items-center justify-center text-[11px]">枝</span>
+                                                        透视枝叶，检查关节
+                                                    </div>
+                                                    <p className="text-xs text-amber-500/70 mb-1 pl-1">定语、状语、补语如何精准修饰主干</p>
+                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.branches}</p>
+                                                </div>
+                                            )}
+
+                                            {/* 第三步：暗门 */}
+                                            {analysisResult.markers && (
+                                                <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-4 space-y-2">
+                                                    <div className="flex items-center gap-2 text-sm font-bold text-violet-700">
+                                                        <span className="w-5 h-5 rounded bg-violet-600 text-white flex items-center justify-center text-[11px]">门</span>
+                                                        扫描暗门，排查微词
+                                                    </div>
+                                                    <p className="text-xs text-violet-500/70 mb-1 pl-1">关联词、介词、并列词——决定逻辑走向</p>
+                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.markers}</p>
+                                                </div>
+                                            )}
 
                                             {/* 5好词 */}
                                             {analysisResult.goodWords.length > 0 && (

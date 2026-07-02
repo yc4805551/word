@@ -31,23 +31,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     });
 
     const [apiKeys, setApiKeys] = useState<Record<AIProvider, string>>({
-        openai: localStorage.getItem('key_openai') || '',
-        deepseek: localStorage.getItem('key_deepseek') || '',
-        gemini: localStorage.getItem('key_gemini') || '',
-        qwen: localStorage.getItem('key_qwen') || '',
-        bytedance: localStorage.getItem('key_bytedance') || '',
-        depocr: localStorage.getItem('key_depocr') || '',
-        anythingllm: localStorage.getItem('key_anythingllm') || '',
+        openai:      localStorage.getItem('key_openai')      || import.meta.env.VITE_OPENAI_API_KEY   || '',
+        deepseek:    localStorage.getItem('key_deepseek')    || import.meta.env.VITE_DEEPSEEK_API_KEY || '',
+        gemini:      localStorage.getItem('key_gemini')      || import.meta.env.VITE_GEMINI_API_KEY   || '',
+        qwen:        localStorage.getItem('key_qwen')        || import.meta.env.VITE_ALI_API_KEY      || import.meta.env.VITE_QWEN_API_KEY || '',
+        bytedance:   localStorage.getItem('key_bytedance')   || import.meta.env.VITE_DOUBAO_API_KEY   || import.meta.env.VITE_BYTEDANCE_API_KEY || '',
+        depocr:      localStorage.getItem('key_depocr')      || import.meta.env.VITE_DEPOCR_API_KEY   || '',
+        anythingllm: localStorage.getItem('key_anythingllm') || import.meta.env.VITE_ANYTHINGLLM_API_KEY || '',
     });
 
     const [endpoints, setEndpoints] = useState<Record<AIProvider, string>>({
-        openai: localStorage.getItem('endpoint_openai') || '',
-        deepseek: localStorage.getItem('endpoint_deepseek') || '',
-        gemini: localStorage.getItem('endpoint_gemini') || '',
-        qwen: localStorage.getItem('endpoint_qwen') || '',
-        bytedance: localStorage.getItem('endpoint_bytedance') || '',
-        depocr: localStorage.getItem('endpoint_depocr') || '',
-        anythingllm: localStorage.getItem('endpoint_anythingllm') || 'https://ycoffice.tail36f59d.ts.net/api/v1/openai/chat/completions',
+        openai:      localStorage.getItem('endpoint_openai')      || import.meta.env.VITE_OPENAI_ENDPOINT      || '',
+        deepseek:    localStorage.getItem('endpoint_deepseek')    || import.meta.env.VITE_DEEPSEEK_ENDPOINT    || '',
+        gemini:      localStorage.getItem('endpoint_gemini')      || import.meta.env.VITE_GEMINI_ENDPOINT      || '',
+        qwen:        localStorage.getItem('endpoint_qwen')        || import.meta.env.VITE_ALI_ENDPOINT         || import.meta.env.VITE_QWEN_ENDPOINT || '',
+        bytedance:   localStorage.getItem('endpoint_bytedance')   || import.meta.env.VITE_DOUBAO_ENDPOINT      || import.meta.env.VITE_BYTEDANCE_ENDPOINT || '',
+        depocr:      localStorage.getItem('endpoint_depocr')      || import.meta.env.VITE_DEPOCR_ENDPOINT      || '',
+        anythingllm: localStorage.getItem('endpoint_anythingllm') || import.meta.env.VITE_ANYTHINGLLM_ENDPOINT || 'https://ycoffice.tail36f59d.ts.net/api/v1/openai/chat/completions',
     });
 
     const [models, setModels] = useState<Record<AIProvider, string>>({

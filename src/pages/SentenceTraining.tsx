@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../context/SettingsContext';
-import { getSentenceTrainingFeedback, chatAboutSentence, chatForSentenceGeneration, type SentenceFeedback, type ChatMessage, type SentenceTemplate, type Segment } from '../lib/ai';
+import { getSentenceTrainingFeedback, chatAboutSentence, chatForSentenceGeneration, type SentenceFeedback, type ChatMessage, type SentenceTemplate } from '../lib/ai';
 import { appendToGitHubFile } from '../lib/github-sync';
 import { cn } from '../lib/utils';
 

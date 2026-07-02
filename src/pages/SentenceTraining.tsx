@@ -44,12 +44,10 @@ export default function SentenceTraining() {
     const [genChatLoading, setGenChatLoading] = useState(false);
     const genChatEndRef = useRef<HTMLDivElement>(null);
 
-    // Step 1: Observe & Deconstruct states
-    const [clickedKeywordIds, setClickedKeywordIds] = useState<number[]>([]);
-    const [clickedWrongIds, setClickedWrongIds] = useState<number[]>([]);
-    const [feynmanExplanation, setFeynmanExplanation] = useState('');
-    const totalKeywordsCount = activeTemplate?.segments.filter(s => s.isKeyword).length || 0;
-    const isStep1Unlocked = clickedKeywordIds.length === totalKeywordsCount && feynmanExplanation.trim().length >= 5;
+    // Step 1: AI Auto-Analysis states
+    const [analysisLoading, setAnalysisLoading] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<{ structure: string; goodWords: string[] } | null>(null);
+    const isStep1Unlocked = analysisResult !== null;
 
     // Step 2: Reconstruct states
     const [selectedTopic, setSelectedTopic] = useState('');
@@ -69,9 +67,7 @@ export default function SentenceTraining() {
     useEffect(() => {
         if (activeTemplate) {
             setStep('observe');
-            setClickedKeywordIds([]);
-            setClickedWrongIds([]);
-            setFeynmanExplanation('');
+            setAnalysisResult(null);
             const presets = activeTemplate.presetTopics || ["乡村振兴", "数字转型", "生态治理", "体制改革"];
             setSelectedTopic(presets[0]);
             setIsCustomTopic(false);
@@ -82,6 +78,13 @@ export default function SentenceTraining() {
             setChatInput('');
         }
     }, [activeTemplate]);
+
+    // Auto-trigger AI analysis when entering Step 1
+    useEffect(() => {
+        if (step === 'observe' && activeTemplate && !analysisResult && !analysisLoading) {
+            runStep1Analysis();
+        }
+    }, [step, activeTemplate]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -143,23 +146,37 @@ export default function SentenceTraining() {
         }
     };
 
-    // Step 1 helper: handle segment click
-    const handleSegmentClick = (segment: Segment) => {
-        if (step !== 'observe') return;
+    // Step 1: AI auto-analysis
+    const runStep1Analysis = async () => {
+        if (!activeTemplate) return;
+        setAnalysisLoading(true);
+        try {
+            const prompt = `请对以下公文长句进行两项分析，以JSON格式返回：
+句子：「${activeTemplate.original}」
 
-        if (segment.isKeyword) {
-            if (clickedKeywordIds.includes(segment.id!)) {
-                setClickedKeywordIds(prev => prev.filter(id => id !== segment.id));
-            } else {
-                setClickedKeywordIds(prev => [...prev, segment.id!]);
+要求：
+1. structure（字符串）：分析该句的句式结构，用简洁的中文说明（如："先破后立式：先指出……的困境，再提出……的方案"）
+2. goodWords（数组，恰好5个）：从句中挑选5个最值得学习的公文好词或短语，每个元素格式为 "词语：说明用法"
+
+仅返回JSON，不要其他内容。示例：
+{"structure":"总分式：先总说目标，再分列三个递进举措","goodWords":["久久为功：形容坚持不懈","提质增效：形容质量和效益双提升","深耕细作：形容精耕细作的工作态度","统筹推进：多任务协调并进","固本培元：巩固根基、培植元气"]}`;
+
+            const { generateText } = await import('../lib/ai');
+            const raw = await generateText(
+                prompt,
+                aiProvider,
+                { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
+            );
+            const parsed = JSON.parse(raw.trim().replace(/^```json|```$/g, '').trim());
+            if (parsed.structure && Array.isArray(parsed.goodWords)) {
+                setAnalysisResult(parsed);
             }
-        } else {
-            if (!clickedWrongIds.includes(segment.id!)) {
-                setClickedWrongIds(prev => [...prev, segment.id!]);
-                setTimeout(() => {
-                    setClickedWrongIds(prev => prev.filter(id => id !== segment.id));
-                }, 800);
-            }
+        } catch (e) {
+            console.error('Step1 analysis failed', e);
+            // fallback: unlock without result
+            setAnalysisResult({ structure: '分析失败，可直接进入下一步', goodWords: [] });
+        } finally {
+            setAnalysisLoading(false);
         }
     };
 
@@ -398,52 +415,64 @@ export default function SentenceTraining() {
                                 </div>
                             </div>
 
-                            {/* Step 1: Observe */}
+                            {/* Step 1: AI Analysis */}
                             <div className={cn("transition-all duration-500", step === 'observe' ? 'block' : 'hidden')}>
-                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                            <span className="bg-blue-600 text-white w-6 h-6 rounded flex items-center justify-center text-xs">1</span>
-                                            输入加工：骨架拆解与大白话翻译
-                                        </h3>
-                                        <div className="text-xs text-slate-400 font-medium bg-slate-100 px-3 py-1 rounded-full">
-                                            已找到 {clickedKeywordIds.length} / {totalKeywordsCount} 个骨架词
+                                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+                                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                        <span className="bg-blue-600 text-white w-6 h-6 rounded flex items-center justify-center text-xs">1</span>
+                                        拆解分析
+                                    </h3>
+
+                                    {/* Original sentence */}
+                                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 leading-loose text-base official-font text-slate-700">
+                                        {activeTemplate.original}
+                                    </div>
+
+                                    {/* Loading state */}
+                                    {analysisLoading && (
+                                        <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-400">
+                                            <Loader2 className="w-7 h-7 animate-spin text-blue-400" />
+                                            <span className="text-sm">AI 正在分析句式结构与好词...</span>
                                         </div>
-                                    </div>
+                                    )}
 
-                                    <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 leading-loose text-lg official-font text-slate-700 select-none">
-                                        {activeTemplate.segments.map((segment) => {
-                                            const isClicked = clickedKeywordIds.includes(segment.id!);
-                                            const isWrongClicked = clickedWrongIds.includes(segment.id!);
-                                            return (
-                                                <span
-                                                    key={segment.id}
-                                                    onClick={() => handleSegmentClick(segment)}
-                                                    className={cn(
-                                                        "transition-all duration-300 mx-0.5 px-1 rounded cursor-pointer",
-                                                        (!isClicked && !isWrongClicked) ? "hover:bg-slate-200/60" : "",
-                                                        segment.isKeyword && isClicked ? "border-b-2 border-emerald-500 bg-emerald-100 text-emerald-800 font-bold" : "",
-                                                        !segment.isKeyword && isWrongClicked ? "bg-red-100 text-red-800 transition-colors" : ""
-                                                    )}
-                                                    title={!isClicked ? "点击标记结构词" : ""}
-                                                >
-                                                    {segment.text}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
+                                    {/* Analysis results */}
+                                    {!analysisLoading && analysisResult && (
+                                        <div className="space-y-4">
+                                            {/* 句式结构 */}
+                                            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
+                                                <div className="flex items-center gap-2 text-sm font-bold text-blue-700">
+                                                    <span className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center text-[11px]">构</span>
+                                                    分析句式结构
+                                                </div>
+                                                <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.structure}</p>
+                                            </div>
 
-                                    <div className="space-y-3">
-                                        <h4 className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                                            用大白话解释逻辑（费曼输出）
-                                        </h4>
-                                        <textarea
-                                            value={feynmanExplanation}
-                                            onChange={(e) => setFeynmanExplanation(e.target.value)}
-                                            placeholder="比如：先说面对什么困难，然后说必须用什么狠劲，最后说能达到什么目的..."
-                                            className="w-full h-24 p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-100 outline-none text-sm bg-slate-50 resize-none"
-                                        />
-                                    </div>
+                                            {/* 5好词 */}
+                                            {analysisResult.goodWords.length > 0 && (
+                                                <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 space-y-3">
+                                                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-700">
+                                                        <span className="w-5 h-5 rounded bg-emerald-600 text-white flex items-center justify-center text-[11px]">词</span>
+                                                        分析 5 个好词
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-2">
+                                                        {analysisResult.goodWords.map((word, i) => {
+                                                            const [term, ...rest] = word.split('：');
+                                                            return (
+                                                                <div key={i} className="flex items-start gap-2 text-sm">
+                                                                    <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-[11px]">{i + 1}</span>
+                                                                    <span>
+                                                                        <strong className="text-slate-800">{term}</strong>
+                                                                        {rest.length > 0 && <span className="text-slate-500">：{rest.join('：')}</span>}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="flex justify-end pt-4 border-t border-slate-100">
                                         <button
@@ -456,6 +485,7 @@ export default function SentenceTraining() {
                                     </div>
                                 </div>
                             </div>
+
 
                             {/* Step 2: Reconstruct */}
                             <div className={cn("transition-all duration-500", step === 'reconstruct' ? 'block' : 'hidden')}>

@@ -173,12 +173,21 @@ export default function SentenceTraining() {
         const trainMatch = userMsg.match(/^训练\s+(.+)$/s);
         if (trainMatch) {
             const sentence = trainMatch[1].trim();
+            // 简易模板：每个分句替换为……，保留标点和句式骨架
+            const templateStr = sentence
+                .split(/([，。；：！？])/)
+                .reduce((acc: string[], seg, i) => {
+                    if (i % 2 === 1) { acc.push(seg); } // 标点保留
+                    else if (seg.trim()) { acc.push('……'); } // 内容替换为省略号
+                    return acc;
+                }, [])
+                .join('');
             const template: SentenceTemplate = {
                 name: '自定义句子特训',
                 methodName: '结构透视三步法',
                 explanation: '您直接提供的句子，用于拆解仿写训练',
                 original: sentence,
-                template: sentence.replace(/[，。；：、！？""''（）—…]/g, '____'),
+                template: templateStr || '……',
                 keywords: [],
                 segments: sentence.split(/[，。；]/).filter(Boolean).map((s, i) => ({ text: s.trim(), isKeyword: false, id: i + 1 })),
                 presetTopics: ["高质量发展", "数字经济", "乡村振兴", "科技创新"],

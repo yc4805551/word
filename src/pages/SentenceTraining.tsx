@@ -54,7 +54,7 @@ function renderGrammarText(text: string): string {
     });
 
     // 高亮语法标签：主语/谓语/宾语/定语/状语/补语 + 冒号
-    html = html.replace(/(主语|谓语|宾语|定语|状语|补语)([：:])/g, (match, label, colon) => {
+    html = html.replace(/(主语|谓语|宾语|定语|状语|补语)([：:])/g, (_match, label, colon) => {
         const colors = GRAMMAR_COLORS[label] || { badge: 'bg-slate-500 text-white', text: 'text-slate-700' };
         return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] ${colors.badge} mr-0.5">${label}</span>${colon}`;
     });

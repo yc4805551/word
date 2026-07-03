@@ -83,6 +83,9 @@ export function getAIConfig(
             model = overrides?.model || env.VITE_OPENAI_MODEL || 'gpt-4o';
     }
 
+    // 清除 apiKey 和 endpoint 中可能的非 ASCII 字符，防止 fetch header 编码报错
+    apiKey = apiKey.replace(/[^\x20-\x7E]/g, '').trim();
+
     return { apiKey, endpoint, model };
 }
 
@@ -94,7 +97,7 @@ function getErrorMessage(err: unknown) {
 
 function normalizeApiKey(key: unknown) {
     if (typeof key !== 'string') return '';
-    // 移除所有非 ASCII 字符（中文全角引号、不可见字符等），防止 header 编码报错
+    // 二次保险：getAIConfig 已做清洗，此处再兜底
     return key.replace(/[^\x20-\x7E]/g, '').trim();
 }
 

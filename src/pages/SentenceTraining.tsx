@@ -22,14 +22,35 @@ function renderMarkdown(text: string): string {
 }
 
 // 语法成分颜色映射
-const GRAMMAR_COLORS: Record<string, { badge: string; text: string }> = {
-    '主语': { badge: 'bg-blue-600 text-white', text: 'text-blue-700 font-semibold' },
-    '谓语': { badge: 'bg-rose-600 text-white', text: 'text-rose-700 font-semibold' },
-    '宾语': { badge: 'bg-emerald-600 text-white', text: 'text-emerald-700 font-semibold' },
-    '定语': { badge: 'bg-amber-500 text-white', text: 'text-amber-700 font-semibold' },
-    '状语': { badge: 'bg-purple-500 text-white', text: 'text-purple-700 font-semibold' },
-    '补语': { badge: 'bg-teal-500 text-white', text: 'text-teal-700 font-semibold' },
+const GRAMMAR_COLORS: Record<string, { badge: string; text: string; underline: string }> = {
+    '主语': { badge: 'bg-blue-600 text-white', text: 'text-blue-700 font-semibold', underline: 'border-b-2 border-blue-500' },
+    '谓语': { badge: 'bg-rose-600 text-white', text: 'text-rose-700 font-semibold', underline: 'border-b-2 border-rose-500' },
+    '宾语': { badge: 'bg-emerald-600 text-white', text: 'text-emerald-700 font-semibold', underline: 'border-b-2 border-emerald-500' },
+    '定语': { badge: 'bg-amber-500 text-white', text: 'text-amber-700 font-semibold', underline: 'border-b-2 border-amber-400' },
+    '状语': { badge: 'bg-purple-500 text-white', text: 'text-purple-700 font-semibold', underline: 'border-b-2 border-purple-400' },
+    '补语': { badge: 'bg-teal-500 text-white', text: 'text-teal-700 font-semibold', underline: 'border-b-2 border-teal-400' },
 };
+
+// 渲染「句子插接」格式：将【成分】标签转为彩色小徽章，前方的词语加对应下划线
+function renderSkeletonText(text: string): string {
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // 匹配"词语【成分】"模式，将词语加下划线，【成分】转为彩色徽章
+    html = html.replace(/([^【]+?)【(主语|谓语|宾语|定语|状语|补语)】/g, (_match, word, label) => {
+        const colors = GRAMMAR_COLORS[label] || { badge: 'bg-slate-500 text-white', underline: 'border-b-2 border-slate-400' };
+        return `<span class="${colors.underline}">${word}</span><sup class="inline-flex items-center px-1 py-0.5 rounded text-[10px] leading-none ${colors.badge} ml-0.5">${label}</sup>`;
+    });
+
+    // 换行处理
+    html = html.split('\n').map(line =>
+        line.trim() === '' ? '<br/>' : line
+    ).join('\n');
+
+    return html;
+}
 
 // 渲染语法分析文本：将"主语：xxx"、"定语「xxx」"等语法标签高亮
 function renderGrammarText(text: string): string {
@@ -92,7 +113,7 @@ export default function SentenceTraining() {
 
     // Step 1: AI Auto-Analysis states
     const [analysisLoading, setAnalysisLoading] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<{ skeleton: string; branches: string; markers: string; goodWords: string[] } | null>(null);
+    const [analysisResult, setAnalysisResult] = useState<{ skeleton: string; branches: string; markers: string; insight: string; goodWords: string[] } | null>(null);
     const isStep1Unlocked = analysisResult !== null;
 
     // Step 2: Reconstruct states
@@ -222,13 +243,14 @@ export default function SentenceTraining() {
 句子：「${activeTemplate.original}」
 
 要求：
-1. skeleton（字符串）：**抽除血肉，只看骨架**——强制找出句子的「主语+谓语（核心动词）+宾语」，即"谁+干了+什么"。这是句子的承重墙。用简洁的中文列出主干，格式如："主语：……，谓语：……，宾语：……"
+1. skeleton（字符串）：**句子插接拆解**——将语法成分标签直接嵌入原句中标注，格式为"词语【成分】词语【成分】"。每个充当主语、谓语、宾语的词语后面紧跟【主语】【谓语】【宾语】标签，定语、状语、补语同理用【定语】【状语】【补语】标注。保留原句标点。示例："加快发展【谓语】工业互联网【宾语】，推进【谓语】制造业数字化转型事关【谓语】现代化产业体系建设和经济高质量发展全局【宾语】"
 2. branches（字符串）：**透视枝叶，检查关节**——把定语（修饰名词）、状语（修饰动词）和补语安回去，说明它们如何精准修饰主干。逐层标注，格式如："定语「……」修饰主语，状语「……」修饰谓语……"
 3. markers（字符串）：**扫描暗门，排查微词**——留意句中的关联词、介词、并列词等，它们决定句子的内在逻辑走向。逐一列出并说明其逻辑功能，格式如："「不仅……更……」表递进；「在……下」表条件"
-4. goodWords（数组，恰好5个）：从句中挑选5个最值得学习的公文好词或短语，每个元素格式为 "词语：说明用法"
+4. insight（字符串）：**句式关键点评**——用一两句话点出这个句式的核心写作技巧，说明为什么这样组织句子有力量，便于学习者迁移运用
+5. goodWords（数组，恰好5个）：从句中挑选5个最值得学习的公文好词或短语，每个元素格式为 "词语：说明用法"
 
 仅返回JSON，不要其他内容。示例：
-{"skeleton":"主语：各级党组织，谓语：统筹推进，宾语：高质量发展","branches":"定语「各级」修饰主语限定义范围，状语「在……指引下」修饰谓语点明前提条件，补语「提质增效」补充宾语内涵","markers":"「在……指引下」表条件前提；「统筹推进」中"统筹"表多任务协调；「和」表并列联结","goodWords":["久久为功：形容坚持不懈","提质增效：质量和效益双提升","深耕细作：精耕细作的工作态度","统筹推进：多任务协调并进","固本培元：巩固根基、培植元气"]}`;
+{"skeleton":"加快发展【谓语】工业互联网【宾语】，推进【谓语】制造业数字化转型事关【谓语】现代化产业体系建设和经济高质量发展全局【宾语】","branches":"定语「制造业数字化转型」修饰宾语限定义范围，状语「加快」修饰谓语表紧迫性","markers":"「推进」与「加快发展」构成并列递进；「事关」表判断联结","insight":"该句采用「动宾并列+判断收束」结构，两个动宾短语先铺开举措，再用"事关"将分量提升到全局高度，形成由具体到抽象的升华。","goodWords":["久久为功：形容坚持不懈","提质增效：形容质量和效益双提升","深耕细作：精耕细作的工作态度","统筹推进：多任务协调并进","固本培元：巩固根基、培植元气"]`;
 
             const { generateText } = await import('../lib/ai');
             const raw = await generateText(
@@ -237,13 +259,13 @@ export default function SentenceTraining() {
                 { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
             const parsed = JSON.parse(raw.trim().replace(/^```json|```$/g, '').trim());
-            if (parsed.skeleton && parsed.branches && parsed.markers && Array.isArray(parsed.goodWords)) {
+            if (parsed.skeleton && Array.isArray(parsed.goodWords)) {
                 setAnalysisResult(parsed);
             }
         } catch (e) {
             console.error('Step1 analysis failed', e);
             // fallback: unlock without result
-            setAnalysisResult({ skeleton: '分析失败，可直接进入下一步', branches: '', markers: '', goodWords: [] });
+            setAnalysisResult({ skeleton: '分析失败，可直接进入下一步', branches: '', markers: '', insight: '', goodWords: [] });
         } finally {
             setAnalysisLoading(false);
         }
@@ -508,14 +530,24 @@ export default function SentenceTraining() {
                                     {/* Analysis results */}
                                     {!analysisLoading && analysisResult && (
                                         <div className="space-y-4">
-                                            {/* 第一步：骨架 */}
-                                            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
+                                            {/* 第一步：句子插接拆解 */}
+                                            <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-3">
                                                 <div className="flex items-center gap-2 text-sm font-bold text-blue-700">
-                                                    <span className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center text-[11px]">骨</span>
-                                                    抽除血肉，只看骨架
+                                                    <span className="w-5 h-5 rounded bg-blue-600 text-white flex items-center justify-center text-[11px]">拆</span>
+                                                    句子插接拆解
                                                 </div>
-                                                <p className="text-xs text-blue-500/70 mb-1 pl-1">找出「主语+谓语+宾语」——句子的承重墙</p>
-                                                <p className="text-sm text-slate-700 leading-relaxed pl-1" dangerouslySetInnerHTML={{ __html: renderGrammarText(analysisResult.skeleton) }} />
+
+                                                {/* 原句 */}
+                                                <div className="bg-white/60 rounded-lg p-3 border border-slate-100">
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">原句</p>
+                                                    <p className="text-sm text-slate-800 leading-loose official-font">{activeTemplate.original}</p>
+                                                </div>
+
+                                                {/* 拆解句 */}
+                                                <div className="bg-white/80 rounded-lg p-3 border border-blue-200/50">
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">拆解</p>
+                                                    <p className="text-sm text-slate-800 leading-loose official-font" dangerouslySetInnerHTML={{ __html: renderSkeletonText(analysisResult.skeleton) }} />
+                                                </div>
                                             </div>
 
                                             {/* 第二步：枝叶 */}
@@ -539,6 +571,17 @@ export default function SentenceTraining() {
                                                     </div>
                                                     <p className="text-xs text-violet-500/70 mb-1 pl-1">关联词、介词、并列词——决定逻辑走向</p>
                                                     <p className="text-sm text-slate-700 leading-relaxed pl-1" dangerouslySetInnerHTML={{ __html: renderGrammarText(analysisResult.markers) }} />
+                                                </div>
+                                            )}
+
+                                            {/* 句式关键点评 */}
+                                            {analysisResult.insight && (
+                                                <div className="rounded-xl border border-cyan-100 bg-cyan-50/40 p-4 space-y-2">
+                                                    <div className="flex items-center gap-2 text-sm font-bold text-cyan-700">
+                                                        <span className="w-5 h-5 rounded bg-cyan-600 text-white flex items-center justify-center text-[11px]">评</span>
+                                                        句式关键点评
+                                                    </div>
+                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.insight}</p>
                                                 </div>
                                             )}
 

@@ -20,6 +20,52 @@ function renderMarkdown(text: string): string {
         })
         .join('\n');
 }
+
+// 语法成分颜色映射
+const GRAMMAR_COLORS: Record<string, { badge: string; text: string }> = {
+    '主语': { badge: 'bg-blue-600 text-white', text: 'text-blue-700 font-semibold' },
+    '谓语': { badge: 'bg-rose-600 text-white', text: 'text-rose-700 font-semibold' },
+    '宾语': { badge: 'bg-emerald-600 text-white', text: 'text-emerald-700 font-semibold' },
+    '定语': { badge: 'bg-amber-500 text-white', text: 'text-amber-700 font-semibold' },
+    '状语': { badge: 'bg-purple-500 text-white', text: 'text-purple-700 font-semibold' },
+    '补语': { badge: 'bg-teal-500 text-white', text: 'text-teal-700 font-semibold' },
+};
+
+// 渲染语法分析文本：将"主语：xxx"、"定语「xxx」"等语法标签高亮
+function renderGrammarText(text: string): string {
+    let html = text
+        // 先转义 HTML 特殊字符
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+    // 高亮「xxx」内的原文片段（用对应颜色）
+    html = html.replace(/「([^」]+)」/g, (match, content) => {
+        // 尝试推断这个「」属于哪个语法成分：看前面的标签关键词
+        const beforeText = html.slice(0, html.indexOf(match));
+        let colorClass = 'text-slate-700 font-medium'; // 默认
+        for (const [label, colors] of Object.entries(GRAMMAR_COLORS)) {
+            if (beforeText.includes(label)) {
+                colorClass = colors.text;
+                break;
+            }
+        }
+        return `<span class="${colorClass} bg-white/60 px-1 rounded">「${content}」</span>`;
+    });
+
+    // 高亮语法标签：主语/谓语/宾语/定语/状语/补语 + 冒号
+    html = html.replace(/(主语|谓语|宾语|定语|状语|补语)([：:])/g, (match, label, colon) => {
+        const colors = GRAMMAR_COLORS[label] || { badge: 'bg-slate-500 text-white', text: 'text-slate-700' };
+        return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] ${colors.badge} mr-0.5">${label}</span>${colon}`;
+    });
+
+    // 换行处理
+    html = html.split('\n').map(line =>
+        line.trim() === '' ? '<br/>' : `<span>${line}</span>`
+    ).join('\n');
+
+    return html;
+}
 import {
     Brain,
     Sparkles,
@@ -97,9 +143,30 @@ export default function SentenceTraining() {
     // Gen Chat Logic
     const handleSendGenChat = async () => {
         if (!genChatInput.trim() || genChatLoading) return;
-        
+
         const userMsg = genChatInput.trim();
         setGenChatInput('');
+        setGenChatLoading(true);
+
+        // 检测「训练 xxx」指令：直接将 xxx 作为训练句子
+        const trainMatch = userMsg.match(/^训练\s+(.+)$/s);
+        if (trainMatch) {
+            const sentence = trainMatch[1].trim();
+            const template: SentenceTemplate = {
+                name: '自定义句子特训',
+                methodName: '结构透视三步法',
+                explanation: '您直接提供的句子，用于拆解仿写训练',
+                original: sentence,
+                template: sentence.replace(/[，。；：、！？""''（）—…]/g, '____'),
+                keywords: [],
+                segments: sentence.split(/[，。；]/).filter(Boolean).map((s, i) => ({ text: s.trim(), isKeyword: false, id: i + 1 })),
+                presetTopics: ["高质量发展", "数字经济", "乡村振兴", "科技创新"],
+            };
+            setActiveTemplate(template);
+            setGenChatLoading(false);
+            return;
+        }
+
         const newHistory = [...genChatHistory, { role: 'user' as const, content: userMsg }];
         setGenChatHistory(newHistory);
         setGenChatLoading(true);
@@ -448,7 +515,7 @@ export default function SentenceTraining() {
                                                     抽除血肉，只看骨架
                                                 </div>
                                                 <p className="text-xs text-blue-500/70 mb-1 pl-1">找出「主语+谓语+宾语」——句子的承重墙</p>
-                                                <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.skeleton}</p>
+                                                <p className="text-sm text-slate-700 leading-relaxed pl-1" dangerouslySetInnerHTML={{ __html: renderGrammarText(analysisResult.skeleton) }} />
                                             </div>
 
                                             {/* 第二步：枝叶 */}
@@ -459,7 +526,7 @@ export default function SentenceTraining() {
                                                         透视枝叶，检查关节
                                                     </div>
                                                     <p className="text-xs text-amber-500/70 mb-1 pl-1">定语、状语、补语如何精准修饰主干</p>
-                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.branches}</p>
+                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1" dangerouslySetInnerHTML={{ __html: renderGrammarText(analysisResult.branches) }} />
                                                 </div>
                                             )}
 
@@ -471,7 +538,7 @@ export default function SentenceTraining() {
                                                         扫描暗门，排查微词
                                                     </div>
                                                     <p className="text-xs text-violet-500/70 mb-1 pl-1">关联词、介词、并列词——决定逻辑走向</p>
-                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1">{analysisResult.markers}</p>
+                                                    <p className="text-sm text-slate-700 leading-relaxed pl-1" dangerouslySetInnerHTML={{ __html: renderGrammarText(analysisResult.markers) }} />
                                                 </div>
                                             )}
 

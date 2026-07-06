@@ -771,6 +771,14 @@ export default function SentenceTraining() {
                                                     </div>
 
                                                     <div className="md:col-span-2 space-y-4">
+                                                        {/* 三行对比：原句 → 仿写 → 标杆 */}
+                                                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                                                <Brain className="w-3.5 h-3.5 text-blue-500" /> 原句（拆解参考）
+                                                            </h4>
+                                                            <p className="text-sm text-slate-700 leading-relaxed official-font">{activeTemplate.original}</p>
+                                                        </div>
+
                                                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                                                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                                                                 <Award className="w-3.5 h-3.5 text-blue-500" /> 您的初稿

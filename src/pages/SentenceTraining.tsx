@@ -273,8 +273,9 @@ export default function SentenceTraining() {
             }
         } catch (e) {
             console.error('Step1 analysis failed', e);
-            // fallback: unlock without result
-            setAnalysisResult({ skeleton: '分析失败，可直接进入下一步', branches: '', markers: '', insight: '', goodWords: [] });
+            // fallback: 设为 null 让 UI 显示失败提示和重试按钮
+            setAnalysisResult(null);
+            setStep('observe');
         } finally {
             setAnalysisLoading(false);
         }
@@ -533,6 +534,30 @@ export default function SentenceTraining() {
                                         <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-400">
                                             <Loader2 className="w-7 h-7 animate-spin text-blue-400" />
                                             <span className="text-sm">AI 正在分析句式结构与好词...</span>
+                                        </div>
+                                    )}
+
+                                    {/* Failed state: show retry + skip */}
+                                    {!analysisLoading && !analysisResult && step === 'observe' && (
+                                        <div className="flex flex-col items-center justify-center py-10 gap-4 text-slate-400">
+                                            <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center">
+                                                <Brain className="w-6 h-6 text-rose-400" />
+                                            </div>
+                                            <p className="text-sm text-rose-500 font-medium">分析失败，请重试或跳过</p>
+                                            <div className="flex gap-3">
+                                                <button
+                                                    onClick={runStep1Analysis}
+                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-1.5"
+                                                >
+                                                    <Loader2 className="w-3.5 h-3.5" /> 重新分析
+                                                </button>
+                                                <button
+                                                    onClick={() => { setAnalysisResult({ skeleton: '', branches: '', markers: '', insight: '', goodWords: [] }); setStep('reconstruct'); }}
+                                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm font-medium"
+                                                >
+                                                    跳过，直接仿写
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
 

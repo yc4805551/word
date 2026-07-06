@@ -222,8 +222,19 @@ export default function SentenceTraining() {
                         if (!parsed.template.presetTopics) {
                             parsed.template.presetTopics = ["高质量发展", "数字经济", "乡村振兴", "科技创新"];
                         }
+                        // 兜底：如果 AI 未返回 template 字符串，用原句分句生成
+                        if (!parsed.template.template && parsed.template.original) {
+                            parsed.template.template = parsed.template.original
+                                .split(/([，。；：！？])/)
+                                .reduce((acc: string[], seg, i) => {
+                                    if (i % 2 === 1) { acc.push(seg); }
+                                    else if (seg.trim()) { acc.push('……'); }
+                                    return acc;
+                                }, [])
+                                .join('') || '……';
+                        }
                         // Assign segments ID if missing
-                        parsed.template.segments = parsed.template.segments.map((s: any, idx: number) => ({...s, id: s.id || (idx+1)}));
+                        parsed.template.segments = parsed.template.segments?.map((s: any, idx: number) => ({...s, id: s.id || (idx+1)})) || parsed.template.original.split(/[，。；]/).filter(Boolean).map((s: string, i: number) => ({ text: s.trim(), isKeyword: false, id: i + 1 }));
                         
                         setActiveTemplate(parsed.template);
                     } else {
@@ -710,9 +721,11 @@ export default function SentenceTraining() {
                                     <div className="space-y-4 pt-4">
                                         <div className="flex items-center justify-between">
                                             <h4 className="text-sm font-bold text-slate-700">2. 开始仿写</h4>
-                                            <span className="text-[10px] text-slate-400 font-mono tracking-wider">
-                                                模板提示：{activeTemplate.template}
-                                            </span>
+                                            {activeTemplate.template && (
+                                                <span className="text-[10px] text-slate-400 font-mono tracking-wider">
+                                                    模板提示：{activeTemplate.template}
+                                                </span>
+                                            )}
                                         </div>
                                         <textarea
                                             value={userDraft}

@@ -33,11 +33,12 @@ export function getAIConfig(
     const env = import.meta.env;
 
     // Helper to ensure endpoint ends with /chat/completions
-    const normalizeEndpoint = (url: string | undefined, defaultUrl: string) => {
+    const normalizeEndpoint = (url: string | undefined, defaultUrl: string, skipAppend: boolean = false) => {
         if (!url) return defaultUrl;
         // 清除非 ASCII 字符，防止 fetch URL 编码报错
         const cleaned = url.replace(/[^\x20-\x7E]/g, '');
-        if (cleaned.includes('/chat/completions')) return cleaned;
+        // 如果 URL 已经包含完整路径（以 /chat/completions 或 /api/ 结尾），则不拼接
+        if (cleaned.includes('/chat/completions') || cleaned.includes('/api/') || skipAppend) return cleaned;
         const base = cleaned.endsWith('/') ? cleaned.slice(0, -1) : cleaned;
         return `${base}/chat/completions`;
     };
@@ -69,7 +70,8 @@ export function getAIConfig(
             break;
         case 'depocr':
             apiKey = overrides?.apiKey || env.VITE_DEPOCR_API_KEY || '';
-            endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_DEPOCR_ENDPOINT, 'https://api.openai.com/v1/chat/completions');
+            // depocr 允许自定义完整 URL（不自动拼接 /chat/completions）
+            endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_DEPOCR_ENDPOINT, 'https://api.openai.com/v1/chat/completions', true);
             model = overrides?.model || env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free';
             break;
         case 'anythingllm':

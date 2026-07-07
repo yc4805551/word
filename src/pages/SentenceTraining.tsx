@@ -286,9 +286,26 @@ export default function SentenceTraining() {
                 aiProvider,
                 { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
-            const parsed = JSON.parse(raw.trim().replace(/^```json|```$/g, '').trim());
+
+            // 强化 JSON 提取：先尝试匹配 { ... } 块，再解析
+            let jsonText = raw.trim().replace(/^```json\s*|```$/g, '').trim();
+            const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                jsonText = jsonMatch[0];
+            }
+
+            let parsed: any;
+            try {
+                parsed = JSON.parse(jsonText);
+            } catch (parseErr) {
+                console.error('Step1 JSON parse failed, raw response:', raw);
+                throw new Error(`AI 未返回有效 JSON 格式（可能返回了纯文本）`);
+            }
+
             if (parsed.skeleton && Array.isArray(parsed.goodWords)) {
                 setAnalysisResult(parsed);
+            } else {
+                throw new Error('AI 返回的 JSON 缺少必要字段');
             }
         } catch (e) {
             console.error('Step1 analysis failed', e);

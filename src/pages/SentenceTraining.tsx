@@ -739,11 +739,28 @@ export default function SentenceTraining() {
                                     <div className="space-y-4 pt-4">
                                         <div className="flex items-center justify-between">
                                             <h4 className="text-sm font-bold text-slate-700">2. 开始仿写</h4>
-                                            {activeTemplate.template && (
-                                                <span className="text-[10px] text-slate-400 font-mono tracking-wider">
-                                                    模板提示：{activeTemplate.template}
-                                                </span>
-                                            )}
+                                            {(() => {
+                                                // 优先使用 Step 1 拆解出的主干（去掉【成分】标签，只保留主谓宾等核心词）
+                                                let hint = '';
+                                                if (analysisResult?.skeleton) {
+                                                    // 只保留【主语】【谓语】【宾语】前的词语，去掉修饰成分
+                                                    const coreOnly = analysisResult.skeleton.replace(
+                                                        /([^【，。；：！？]*?)【(主语|谓语|宾语)】/g,
+                                                        '$1 '
+                                                    ).replace(/【[^】]+】/g, '') // 去掉其他标签及内容
+                                                     .replace(/\s+/g, ' ')
+                                                     .trim();
+                                                    if (coreOnly.length > 3) hint = `主干：${coreOnly}`;
+                                                }
+                                                if (!hint && activeTemplate.template && !/^[…，。；：！？\s]+$/.test(activeTemplate.template)) {
+                                                    hint = `模板：${activeTemplate.template}`;
+                                                }
+                                                return hint ? (
+                                                    <span className="text-[11px] text-slate-500 font-medium max-w-[60%] truncate">
+                                                        {hint}
+                                                    </span>
+                                                ) : null;
+                                            })()}
                                         </div>
                                         <textarea
                                             value={userDraft}

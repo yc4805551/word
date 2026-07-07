@@ -114,6 +114,7 @@ export default function SentenceTraining() {
     // Step 1: AI Auto-Analysis states
     const [analysisLoading, setAnalysisLoading] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<{ skeleton: string; branches: string; markers: string; insight: string; goodWords: string[] } | null>(null);
+    const [hasTriedAnalysis, setHasTriedAnalysis] = useState(false);
     const isStep1Unlocked = analysisResult !== null;
 
     // Step 2: Reconstruct states
@@ -146,10 +147,17 @@ export default function SentenceTraining() {
         }
     }, [activeTemplate]);
 
-    // Auto-trigger AI analysis when entering Step 1
+    // Auto-trigger AI analysis when entering Step 1 (only on first load, not on retry)
     useEffect(() => {
-        if (step === 'observe' && activeTemplate && !analysisResult && !analysisLoading) {
+        // 当切换到新的 template、进入 observe 状态、且没有分析结果时触发
+        // 失败后 analysisResult 为 null，不会再次触发（避免无限重试）
+        if (step === 'observe' && activeTemplate && analysisResult === null && !analysisLoading && !hasTriedAnalysis) {
+            setHasTriedAnalysis(true);
             runStep1Analysis();
+        }
+        // 当切换 template 时重置标记
+        if (activeTemplate) {
+            setHasTriedAnalysis(false);
         }
     }, [step, activeTemplate]);
 
@@ -432,7 +440,7 @@ export default function SentenceTraining() {
                     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col h-[500px]">
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between">
                             <span>寻找训练句式</span>
-                            <button onClick={() => { setActiveTemplate(null); setStep('chat'); }} className="text-[11px] text-blue-500 hover:underline">返回对话</button>
+                            <button onClick={() => { setActiveTemplate(null); setStep('chat'); setGenChatHistory([]); }} className="text-[11px] text-blue-500 hover:underline">返回对话</button>
                         </h3>
                         
                         {/* If in chat mode for generation */}
@@ -557,10 +565,11 @@ export default function SentenceTraining() {
                                             <p className="text-sm text-rose-500 font-medium">分析失败，请重试或跳过</p>
                                             <div className="flex gap-3">
                                                 <button
-                                                    onClick={runStep1Analysis}
-                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-1.5"
+                                                    onClick={() => { setHasTriedAnalysis(false); runStep1Analysis(); }}
+                                                    disabled={analysisLoading}
+                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-bold flex items-center gap-1.5"
                                                 >
-                                                    <Loader2 className="w-3.5 h-3.5" /> 重新分析
+                                                    <Loader2 className={cn("w-3.5 h-3.5", analysisLoading && "animate-spin")} /> {analysisLoading ? '分析中...' : '重新分析'}
                                                 </button>
                                                 <button
                                                     onClick={() => { setAnalysisResult({ skeleton: '', branches: '', markers: '', insight: '', goodWords: [] }); setStep('reconstruct'); }}

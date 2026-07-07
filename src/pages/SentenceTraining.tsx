@@ -234,7 +234,7 @@ export default function SentenceTraining() {
                         if (!parsed.template.template && parsed.template.original) {
                             parsed.template.template = parsed.template.original
                                 .split(/([，。；：！？])/)
-                                .reduce((acc: string[], seg, i) => {
+                                .reduce((acc: string[], seg: string, i: number) => {
                                     if (i % 2 === 1) { acc.push(seg); }
                                     else if (seg.trim()) { acc.push('……'); }
                                     return acc;

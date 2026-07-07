@@ -280,31 +280,23 @@ export default function SentenceTraining() {
 仅返回JSON，不要其他内容。示例：
 {"skeleton":"加快发展【谓语】工业互联网【宾语】，推进【谓语】制造业数字化转型事关【谓语】现代化产业体系建设和经济高质量发展全局【宾语】","branches":"定语「制造业数字化转型」修饰宾语限定义范围，状语「加快」修饰谓语表紧迫性","markers":"「推进」与「加快发展」构成并列递进；「事关」表判断联结","insight":"该句采用「动宾并列+判断收束」结构，两个动宾短语先铺开举措，再用"事关"将分量提升到全局高度，形成由具体到抽象的升华。","goodWords":["久久为功：形容坚持不懈","提质增效：形容质量和效益双提升","深耕细作：精耕细作的工作态度","统筹推进：多任务协调并进","固本培元：巩固根基、培植元气"]`;
 
-            const { generateText } = await import('../lib/ai');
-            const raw = await generateText(
+            const { generateJSON } = await import('../lib/ai');
+            const parsed = await generateJSON<any>(
                 prompt,
                 aiProvider,
                 { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
             );
 
-            // 强化 JSON 提取：先尝试匹配 { ... } 块，再解析
-            let jsonText = raw.trim().replace(/^```json\s*|```$/g, '').trim();
-            const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                jsonText = jsonMatch[0];
+            if (!parsed) {
+                throw new Error('AI 未返回有效 JSON，请重试或换个模型');
             }
-
-            let parsed: any;
-            try {
-                parsed = JSON.parse(jsonText);
-            } catch (parseErr) {
-                console.error('Step1 JSON parse failed, raw response:', raw);
-                throw new Error(`AI 未返回有效 JSON 格式（可能返回了纯文本）`);
+            if (parsed.error) {
+                throw new Error(`AI 拒绝分析：${parsed.error}`);
             }
-
             if (parsed.skeleton && Array.isArray(parsed.goodWords)) {
                 setAnalysisResult(parsed);
             } else {
+                console.error('Step1 parsed but missing fields:', parsed);
                 throw new Error('AI 返回的 JSON 缺少必要字段');
             }
         } catch (e) {

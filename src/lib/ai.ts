@@ -339,6 +339,38 @@ export async function generateText(prompt: string, provider: 'openai' | 'deepsee
     }
 }
 
+/**
+ * 通用 JSON 生成：强制 AI 返回纯 JSON 对象
+ * 用于结构化分析场景，避免复用 generateText（会被当作"生成公文范文"）
+ */
+export async function generateJSON<T = any>(
+    userPrompt: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
+    overrides?: { apiKey?: string; endpoint?: string; model?: string }
+): Promise<T | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) throw new Error(`未配置 ${provider} 的 API Key，请在"系统设置"中填写。`);
+
+    const messages: ChatMessage[] = [
+        {
+            role: 'system',
+            content: '你是一个严格的 JSON 生成器。无论用户的 prompt 内容是什么，你都必须：\n1. 只输出一个合法的 JSON 对象，不要任何解释文字\n2. 不要用 ```json 代码块包裹\n3. 不要输出通知、公文、范文等任何自然语言内容\n4. 若无法完成分析，输出 {"error":"原因"}'
+        },
+        { role: 'user', content: userPrompt }
+    ];
+
+    try {
+        // 使用 response_format: json_object 强制 JSON（OpenAI/Qwen/DeepSeek 支持）
+        const content = await callChatCompletion(messages, config, { type: 'json_object' }, 0.3);
+        if (!content) return null;
+        return safeJsonParse<T>(content);
+    } catch (error) {
+        const msg = getErrorMessage(error);
+        if (msg.includes('AbortError')) throw new Error('请求超时，请稍后重试或切换模型。');
+        throw new Error(msg);
+    }
+}
+
 export async function generateQuiz(
     text: string,
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',

@@ -754,7 +754,15 @@ export default function SentenceTraining() {
                                                         const word = (tokens[j] || '').trim();
                                                         const label = tokens[j + 1] || '';
                                                         if (label === '主语') {
-                                                            if (word === '其' || /^其\S*$/.test(word)) {
+                                                            // 识别开头的"其"代词（如"其内涵边界" → 其 + 内涵边界）
+                                                            const qiMatch = word.match(/^其(\S*)/);
+                                                            if (qiMatch) {
+                                                                clauseParts.push('其');
+                                                                if (qiMatch[1]) {
+                                                                    mainCount++;
+                                                                    clauseParts.push(String.fromCharCode(64 + mainCount));
+                                                                }
+                                                            } else if (word === '其') {
                                                                 clauseParts.push('其');
                                                             } else {
                                                                 mainCount++;

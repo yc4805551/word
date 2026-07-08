@@ -740,23 +740,32 @@ export default function SentenceTraining() {
                                         <div className="flex items-center justify-between">
                                             <h4 className="text-sm font-bold text-slate-700">2. 开始仿写</h4>
                                             {(() => {
-                                                // 优先使用 Step 1 拆解出的主干（去掉【成分】标签，只保留主谓宾等核心词）
+                                                // 从 Step 1 拆解句提取主干：保留 主语/谓语/宾语/状语（含介词），去掉 定语/补语
                                                 let hint = '';
                                                 if (analysisResult?.skeleton) {
-                                                    // 只保留【主语】【谓语】【宾语】前的词语，去掉修饰成分
-                                                    const coreOnly = analysisResult.skeleton.replace(
-                                                        /([^【，。；：！？]*?)【(主语|谓语|宾语)】/g,
-                                                        '$1 '
-                                                    ).replace(/【[^】]+】/g, '') // 去掉其他标签及内容
-                                                     .replace(/\s+/g, ' ')
-                                                     .trim();
-                                                    if (coreOnly.length > 3) hint = `主干：${coreOnly}`;
+                                                    const KEEP = /^(主语|谓语|宾语|状语)$/;
+                                                    // 按【】切分为 [词, 标签, 词, 标签, ...]
+                                                    const tokens = analysisResult.skeleton.split(/【([^】]+)】/);
+                                                    const kept: string[] = [];
+                                                    for (let i = 0; i < tokens.length; i += 2) {
+                                                        const word = tokens[i] || '';
+                                                        const label = tokens[i + 1] || '';
+                                                        if (!label) {
+                                                            // 结尾无标签的部分（一般是标点或残留），保留标点
+                                                            kept.push(word.replace(/[^，。；：！？]/g, '').trim());
+                                                        } else if (KEEP.test(label)) {
+                                                            kept.push(word.trim());
+                                                        }
+                                                        // 定语/补语：丢弃前面的词
+                                                    }
+                                                    const core = kept.filter(Boolean).join(' ').replace(/\s+([，。；：！？])/g, '$1').trim();
+                                                    if (core.length > 3) hint = `主干：${core}`;
                                                 }
                                                 if (!hint && activeTemplate.template && !/^[…，。；：！？\s]+$/.test(activeTemplate.template)) {
                                                     hint = `模板：${activeTemplate.template}`;
                                                 }
                                                 return hint ? (
-                                                    <span className="text-[11px] text-slate-500 font-medium max-w-[60%] truncate">
+                                                    <span className="text-[11px] text-slate-500 font-medium max-w-[65%] truncate" title={hint}>
                                                         {hint}
                                                     </span>
                                                 ) : null;

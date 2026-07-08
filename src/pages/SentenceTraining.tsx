@@ -742,6 +742,15 @@ export default function SentenceTraining() {
                                             {(() => {
                                                 if (!analysisResult?.skeleton) return null;
                                                 // 抽象为字母占位符：A 谓语 B，B 谓语 C，...
+                                                // 保留字面的连词/代词（按长度倒序匹配，避免短词截胡长词）
+                                                const KEEP_WORDS = ['而且', '由于', '举一反三', '其', '但', '及', '并', '由'];
+                                                const matchKeepPrefix = (word: string): { keep: string; rest: string } | null => {
+                                                    for (const kw of KEEP_WORDS) {
+                                                        if (word === kw) return { keep: kw, rest: '' };
+                                                        if (word.startsWith(kw)) return { keep: kw, rest: word.slice(kw.length) };
+                                                    }
+                                                    return null;
+                                                };
                                                 let mainCount = 0;
                                                 const sentences = analysisResult.skeleton.split(/([，。；])/);
                                                 const parts: string[] = [];
@@ -754,16 +763,13 @@ export default function SentenceTraining() {
                                                         const word = (tokens[j] || '').trim();
                                                         const label = tokens[j + 1] || '';
                                                         if (label === '主语') {
-                                                            // 识别开头的"其"代词（如"其内涵边界" → 其 + 内涵边界）
-                                                            const qiMatch = word.match(/^其(\S*)/);
-                                                            if (qiMatch) {
-                                                                clauseParts.push('其');
-                                                                if (qiMatch[1]) {
+                                                            const kept = matchKeepPrefix(word);
+                                                            if (kept) {
+                                                                clauseParts.push(kept.keep);
+                                                                if (kept.rest) {
                                                                     mainCount++;
                                                                     clauseParts.push(String.fromCharCode(64 + mainCount));
                                                                 }
-                                                            } else if (word === '其') {
-                                                                clauseParts.push('其');
                                                             } else {
                                                                 mainCount++;
                                                                 clauseParts.push(String.fromCharCode(64 + mainCount));

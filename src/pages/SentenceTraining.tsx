@@ -737,35 +737,55 @@ export default function SentenceTraining() {
                                     </div>
 
                                     <div className="space-y-4 pt-4">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-sm font-bold text-slate-700">2. 开始仿写</h4>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <h4 className="text-sm font-bold text-slate-700 shrink-0">2. 开始仿写</h4>
                                             {(() => {
-                                                // 从 Step 1 拆解句提取主干：保留 主语/谓语/宾语/状语（含介词），去掉 定语/补语
-                                                let hint = '';
-                                                if (analysisResult?.skeleton) {
-                                                    const KEEP = /^(主语|谓语|宾语|状语)$/;
-                                                    // 按【】切分为 [词, 标签, 词, 标签, ...]
-                                                    const tokens = analysisResult.skeleton.split(/【([^】]+)】/);
-                                                    const kept: string[] = [];
-                                                    for (let i = 0; i < tokens.length; i += 2) {
-                                                        const word = tokens[i] || '';
-                                                        const label = tokens[i + 1] || '';
-                                                        if (!label) {
-                                                            // 结尾无标签的部分（一般是标点或残留），保留标点
-                                                            kept.push(word.replace(/[^，。；：！？]/g, '').trim());
-                                                        } else if (KEEP.test(label)) {
-                                                            kept.push(word.trim());
+                                                if (!analysisResult?.skeleton) return null;
+                                                // 抽象为字母占位符：A 谓语 B，B 谓语 C，...
+                                                let mainCount = 0;
+                                                const sentences = analysisResult.skeleton.split(/([，。；])/);
+                                                const parts: string[] = [];
+                                                for (let i = 0; i < sentences.length; i += 2) {
+                                                    const clause = sentences[i];
+                                                    if (!clause || !clause.trim()) continue;
+                                                    const tokens = clause.split(/【([^】]+)】/);
+                                                    const clauseParts: string[] = [];
+                                                    for (let j = 0; j < tokens.length; j += 2) {
+                                                        const word = (tokens[j] || '').trim();
+                                                        const label = tokens[j + 1] || '';
+                                                        if (label === '主语') {
+                                                            if (word === '其' || /^其\S*$/.test(word)) {
+                                                                clauseParts.push('其');
+                                                            } else {
+                                                                mainCount++;
+                                                                clauseParts.push(String.fromCharCode(64 + mainCount));
+                                                            }
+                                                        } else if (label === '谓语') {
+                                                            if (word) clauseParts.push(word);
+                                                        } else if (label === '宾语') {
+                                                            mainCount++;
+                                                            clauseParts.push(String.fromCharCode(64 + mainCount));
+                                                        } else if (label === '状语') {
+                                                            const prepMatch = word.match(/^(与|对|在|从|向|为|以|把|被|给|让|比|跟|同)/);
+                                                            if (prepMatch) {
+                                                                mainCount++;
+                                                                clauseParts.push(`${prepMatch[0]} ${String.fromCharCode(64 + mainCount)}`);
+                                                            } else if (word) {
+                                                                clauseParts.push(word);
+                                                            }
                                                         }
-                                                        // 定语/补语：丢弃前面的词
+                                                        // 定语/补语：丢弃
                                                     }
-                                                    const core = kept.filter(Boolean).join(' ').replace(/\s+([，。；：！？])/g, '$1').trim();
-                                                    if (core.length > 3) hint = `主干：${core}`;
+                                                    if (clauseParts.length > 0) {
+                                                        parts.push(clauseParts.join(' '));
+                                                    }
                                                 }
-                                                if (!hint && activeTemplate.template && !/^[…，。；：！？\s]+$/.test(activeTemplate.template)) {
-                                                    hint = `模板：${activeTemplate.template}`;
-                                                }
+                                                const hint = parts.length > 0 ? `核心：${parts.join('，')}` : null;
                                                 return hint ? (
-                                                    <span className="text-[11px] text-slate-500 font-medium max-w-[65%] truncate" title={hint}>
+                                                    <span
+                                                        className="text-[11px] text-slate-500 font-medium truncate min-w-0 flex-1 text-right"
+                                                        title={hint}
+                                                    >
                                                         {hint}
                                                     </span>
                                                 ) : null;

@@ -1,7 +1,7 @@
 import type { StructurePattern } from '../data/week3-data';
-import { 
-    type AIConfig, 
-    type ChatMessage, 
+import {
+    type AIConfig,
+    type ChatMessage,
     type AIResponse,
     type PolishedText,
     type AuditResult,
@@ -25,6 +25,7 @@ export * from './ai-types';
 import { PROMPTS } from './智能画布-提示词';
 import { TRAINING_PROMPTS } from './特训营-提示词';
 import { COMPLETION_PROMPTS } from './智能补全-提示词';
+import knowledgeBase from '../data/knowledge-base.json';
 
 export function getAIConfig(
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
@@ -873,47 +874,40 @@ export async function generateAssociativeSuggestions(
     overrides?: { apiKey?: string; endpoint?: string; model?: string },
     onPartialResult?: (partial: AssociativeSuggestion) => void
 ): Promise<AssociativeSuggestion | null> {
-    const config = getAIConfig(provider, overrides);
-    if (!normalizeApiKey(config.apiKey) && provider !== 'anythingllm') return null;
+    // 从本地知识库 JSON 检索，零 API 调用
+    const shortQuery = textContext.slice(-60).trim().toLowerCase() || "公文";
+    const queryTerms = shortQuery.split(/[\s，。；：、！？]/).filter(Boolean);
 
-    // 请求 A：优先，包含 directions + 前 10 条句子
-    const messagesA = buildAssociativeMessages(textContext, true, 10);
-    // 请求 B：后台，仅 10 条补充句子
-    const messagesB = buildAssociativeMessages(textContext, false, 10);
+    // 分数匹配
+    const scored = (knowledgeBase as Array<{ text: string; keywords: string[] }>).map(item => {
+        let score = 0;
+        const textLower = item.text.toLowerCase();
+        for (const term of queryTerms) {
+            if (textLower.includes(term)) score += 3;
+            for (const kw of item.keywords) {
+                if (kw.includes(term) || term.includes(kw)) score += 5;
+            }
+        }
+        return { item, score };
+    });
 
-    // 为了保护本地私有模型AnythingLLM不会被瞬发的并发请求撑崩或触发CORS并发风暴，我们改为串行执行，同时移除可能导致底层拒收的严格 json_object 参数
-    const contentA = await callChatCompletion(messagesA, config, undefined, 0.1).catch((e) => { console.error("API Error A:", e.message); return null; });
-    const promiseB = callChatCompletion(messagesB, config, undefined, 0.1).catch((e) => { console.error("API Error B:", e.message); return null; });
+    scored.sort((a, b) => b.score - a.score);
+    const matched = scored.filter(s => s.score > 0);
+    const topItems = matched.length > 0 ? matched : scored; // 无匹配时返回全部
 
-    const isKbFallback = (content: string | null) =>
-        content?.includes("There is no relevant information") ||
-        content?.includes("未能在当前专属文献库中完全匹配");
+    const sentences = topItems.slice(0, 9).map(s => ({
+        text: s.item.text,
+        keywords: s.item.keywords
+    }));
 
-    // A 先到先渲染（由于改为了串行，此时contentA已经获取完毕）
-    if (isKbFallback(contentA)) {
-        return {
-            directions: ["未能在当前专属文献库中检索到完全匹配的业务内容。"],
-            sentences: [{ text: "（本地知识库中暂无相关指导文本，请继续书写并触发联想）", keywords: [] }]
-        };
-    }
+    const directions = matched.length > 0
+        ? [...new Set(matched.slice(0, 3).map(s => s.item.keywords[0] || ''))].filter(Boolean)
+            .map(kw => `参考「${kw}」相关素材`)
+        : [];
 
-    const resultA = normalizeAssociativeResult(safeJsonParse(contentA ?? ''));
-    if (resultA && onPartialResult) {
-        onPartialResult(resultA); // 立即回调，让 UI 先渲染前 7 条
-    }
-
-    // B 后续追加
-    const contentB = await promiseB;
-    const resultB = isKbFallback(contentB) ? null : normalizeAssociativeResult(safeJsonParse(contentB ?? ''));
-
-    // 合并两批结果
-    const finalDirections = resultA?.directions ?? [];
-    const sentencesA = resultA?.sentences ?? [];
-    const sentencesB = resultB?.sentences ?? [];
-    const allSentences = [...sentencesA, ...sentencesB];
-
-    if (allSentences.length === 0 && finalDirections.length === 0) return null;
-    return { directions: finalDirections, sentences: allSentences };
+    const result = { directions, sentences };
+    if (onPartialResult) onPartialResult(result);
+    return result;
 }
 
 /**

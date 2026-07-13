@@ -7,7 +7,6 @@ import {
     type AuditResult,
     type AuthenticityResult,
     type AssociativeSuggestion,
-    type AssociativeSentence,
     type Quiz,
     type LogicExpansion,
     type OutlineResult,
@@ -821,93 +820,79 @@ export async function deepAuditDocument(
         return content ? safeJsonParse<AuditResult>(content) : null;
     } catch { return null; }
 }
+type KnowledgeBaseRecord = {
+    text: string;
+    keywords: string[];
+    source: string;
+};
 
-
-
-
-// 解析可能带有 【词】 标记的句子（兼容纯字符串旧格式）
-function normalizeAssociativeSentence(raw: unknown): AssociativeSentence | null {
-    if (typeof raw === 'string') {
-        const keywords = [...raw.matchAll(/【([^】]+)】/g)].map(m => m[1]);
-        return { text: raw, keywords };
-    }
-    if (isObject(raw) && typeof raw.text === 'string') {
-        let text = raw.text;
-        const keywords = Array.isArray(raw.keywords)
-            ? raw.keywords.filter((k): k is string => typeof k === 'string')
-            : [...text.matchAll(/【([^】]+)】/g)].map(m => m[1]);
-            
-        // 动态补全大模型漏加的【】标记
-        if (keywords.length > 0) {
-            keywords.forEach(kw => {
-                if (!text.includes(`【${kw}】`) && text.includes(kw)) {
-                    text = text.replace(kw, `【${kw}】`);
-                }
-            });
-        }
-        return { text, keywords };
-    }
-    return null;
-}
-
-function normalizeAssociativeResult(raw: unknown): AssociativeSuggestion | null {
-    if (!isObject(raw)) return null;
-    const directions = Array.isArray(raw.directions)
-        ? raw.directions.filter((d): d is string => typeof d === 'string')
-        : [];
-    const sentencesRaw = Array.isArray(raw.sentences) ? raw.sentences : [];
-    const sentences = sentencesRaw.map(normalizeAssociativeSentence).filter((s): s is AssociativeSentence => s !== null);
-    if (directions.length === 0 && sentences.length === 0) return null;
-    return { directions, sentences };
-}
-
-// 构建联想灵感 prompt（可选：是否包含 directions）
-function buildAssociativeMessages(textContext: string, includeDirections: boolean, sentenceCount: number): ChatMessage[] {
-    const longContext = textContext.slice(-800);
-    const shortQuery = textContext.slice(-60).trim() || "公文";
-    return PROMPTS.associative(longContext, shortQuery, includeDirections, sentenceCount);
-}
-
-export async function generateAssociativeSuggestions(
-    textContext: string,
-    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'anythingllm',
-    overrides?: { apiKey?: string; endpoint?: string; model?: string },
-    onPartialResult?: (partial: AssociativeSuggestion) => void
-): Promise<AssociativeSuggestion | null> {
-    // 从本地知识库 JSON 检索，零 API 调用
-    const shortQuery = textContext.slice(-60).trim().toLowerCase() || "公文";
-    const queryTerms = shortQuery.split(/[\s，。；：、！？]/).filter(Boolean);
-
-    // 分数匹配
-    const scored = (knowledgeBase as Array<{ text: string; keywords: string[] }>).map(item => {
-        let score = 0;
-        const textLower = item.text.toLowerCase();
-        for (const term of queryTerms) {
-            if (textLower.includes(term)) score += 3;
-            for (const kw of item.keywords) {
-                if (kw.includes(term) || term.includes(kw)) score += 5;
-            }
-        }
-        return { item, score };
+function normalizeKnowledgeBase(): KnowledgeBaseRecord[] {
+    return knowledgeBase.flatMap((record): KnowledgeBaseRecord[] => {
+        if (typeof record.text !== 'string' || !record.text.trim()) return [];
+        const keywords = Array.isArray(record.keywords)
+            ? record.keywords.filter((keyword): keyword is string => typeof keyword === 'string' && keyword.trim().length > 1)
+            : [];
+        if (keywords.length === 0) return [];
+        return [{
+            text: record.text.trim(),
+            keywords: [...new Set(keywords.map(keyword => keyword.trim()))],
+            source: typeof record.source === 'string' && record.source.trim() ? record.source.trim() : '本地知识库'
+        }];
     });
+}
 
-    scored.sort((a, b) => b.score - a.score);
-    const matched = scored.filter(s => s.score > 0);
-    const topItems = matched.length > 0 ? matched : scored; // 无匹配时返回全部
+const localKnowledgeBase = normalizeKnowledgeBase();
 
-    const sentences = topItems.slice(0, 9).map(s => ({
-        text: s.item.text,
-        keywords: s.item.keywords
-    }));
+function normalizeMatchText(value: string): string {
+    return value.toLowerCase().replace(/\s+/g, '');
+}
 
-    const directions = matched.length > 0
-        ? [...new Set(matched.slice(0, 3).map(s => s.item.keywords[0] || ''))].filter(Boolean)
-            .map(kw => `参考「${kw}」相关素材`)
-        : [];
+function scoreKeywordMatch(query: string, keyword: string): number {
+    if (query.includes(keyword)) return 20;
+    if (keyword.length >= 3 && keyword.includes(query)) return 12;
 
-    const result = { directions, sentences };
-    if (onPartialResult) onPartialResult(result);
-    return result;
+    const minLength = Math.min(query.length, keyword.length);
+    for (let length = Math.min(5, minLength); length >= 2; length -= 1) {
+        for (let index = 0; index <= query.length - length; index += 1) {
+            if (keyword.includes(query.slice(index, index + length))) return length * 2;
+        }
+    }
+    return 0;
+}
+
+export async function generateAssociativeSuggestions(textContext: string): Promise<AssociativeSuggestion | null> {
+    const query = normalizeMatchText(textContext.slice(-200));
+    if (!query) return null;
+
+    const matches = localKnowledgeBase
+        .map((item, index) => {
+            const keywordScores = item.keywords.map(keyword => ({
+                keyword,
+                score: scoreKeywordMatch(query, normalizeMatchText(keyword))
+            })).filter(match => match.score > 0);
+            const bodyScore = item.text.length >= 3 && query.includes(normalizeMatchText(item.text)) ? 3 : 0;
+            return {
+                item,
+                index,
+                score: keywordScores.reduce((total, match) => total + match.score, bodyScore),
+                matchedKeywords: keywordScores.map(match => match.keyword)
+            };
+        })
+        .filter(match => match.score > 0)
+        .sort((left, right) => right.score - left.score || left.index - right.index)
+        .slice(0, 6);
+
+    if (matches.length === 0) return null;
+
+    const matchedKeywords = [...new Set(matches.flatMap(match => match.matchedKeywords))].slice(0, 3);
+    return {
+        directions: matchedKeywords.map(keyword => `围绕「${keyword}」补充具体举措和实施成效`),
+        sentences: matches.map(match => ({
+            text: match.item.text,
+            keywords: match.item.keywords,
+            source: match.item.source
+        }))
+    };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { EditorProvider } from '../components/FastCanvas/EditorProvider';
 import EditorArea from '../components/FastCanvas/EditorArea';
 import AIAssistantSidebar from '../components/FastCanvas/AIAssistantSidebar';
@@ -135,28 +135,30 @@ function FastCanvasContent({
             </div>
 
             {/* Main Workspace */}
-            <div className="flex flex-1 overflow-hidden relative">
+            <div className="flex flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden relative">
                 {/* Editor Left Side */}
-                <div className="flex-1 h-full min-w-0 flex flex-col relative z-0">
+                <div className="min-h-[24rem] flex-1 min-w-0 flex flex-col relative z-0 md:h-full">
                     <EditorArea />
                     <CharacterCountBar />
                 </div>
 
                 {/* Draggable Handle */}
-                <div 
+                <div
                     onMouseDown={handleMouseDown}
-                    className="w-1.5 hover:w-2 bg-transparent hover:bg-blue-400 cursor-col-resize z-10 absolute right-0 top-0 bottom-0 flex items-center justify-center group transition-all"
+                    className="hidden md:flex w-1.5 hover:w-2 bg-transparent hover:bg-blue-400 cursor-col-resize z-10 absolute right-0 top-0 bottom-0 items-center justify-center group transition-all"
                     style={{ right: `${sidebarWidth}px`, transform: 'translateX(50%)' }}
                 >
                     <div className="h-8 w-1 bg-slate-200 group-hover:bg-white rounded-full"></div>
                 </div>
 
-                {/* AI Sidebar Right Side */}
-                <div 
-                    className="h-full shrink-0 hidden md:block" 
-                    style={{ width: `${sidebarWidth}px` }}
+                {/* AI Assistant */}
+                <div
+                    className="h-[24rem] shrink-0 border-t border-slate-200 md:h-full md:border-t-0"
+                    style={{ '--sidebar-width': `${sidebarWidth}px` } as CSSProperties}
                 >
-                    <AIAssistantSidebar />
+                    <div className="h-full md:w-[var(--sidebar-width)]">
+                        <AIAssistantSidebar />
+                    </div>
                 </div>
             </div>
         </div>

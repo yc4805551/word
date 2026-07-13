@@ -8,27 +8,27 @@ import { useSettings } from '../../context/SettingsContext';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// 把句子中的 【关键词】 渲染成高亮可点击的 chip
-function SentenceWithHighlights({ text, onKeywordClick }: { text: string; onKeywordClick: (word: string) => void }) {
-    const parts = text.split(/(【[^】]+】)/g);
+function SentenceWithHighlights({ text, keywords, onKeywordClick }: { text: string; keywords: string[]; onKeywordClick: (word: string) => void }) {
+    const matchedKeywords = [...new Set(keywords.filter(keyword => keyword.length > 1 && text.includes(keyword)))]
+        .sort((left, right) => right.length - left.length);
+    if (matchedKeywords.length === 0) return <span>{text}</span>;
+
+    const escapedKeywords = matchedKeywords.map(keyword => keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const keywordPattern = new RegExp(`(${escapedKeywords.join('|')})`, 'g');
+    const keywordSet = new Set(matchedKeywords);
+
     return (
         <span>
-            {parts.map((part, i) => {
-                const match = part.match(/^【(.+)】$/);
-                if (match) {
-                    return (
-                        <button
-                            key={i}
-                            onClick={(e) => { e.stopPropagation(); onKeywordClick(match[1]); }}
-                            className="inline-flex items-center font-semibold text-blue-700 bg-blue-50 px-1 rounded hover:bg-blue-100 transition-colors cursor-pointer mx-0.5 text-[11px]"
-                            title={`点击插入"${match[1]}"到光标处`}
-                        >
-                            {match[1]}
-                        </button>
-                    );
-                }
-                return <span key={i}>{part}</span>;
-            })}
+            {text.split(keywordPattern).map((part, index) => keywordSet.has(part) ? (
+                <button
+                    key={index}
+                    onClick={(event) => { event.stopPropagation(); onKeywordClick(part); }}
+                    className="inline-flex items-center font-semibold text-blue-700 bg-blue-50 px-1 rounded hover:bg-blue-100 transition-colors cursor-pointer mx-0.5 text-[11px]"
+                    title={`点击插入“${part}”到光标处`}
+                >
+                    {part}
+                </button>
+            ) : <span key={index}>{part}</span>)}
         </span>
     );
 }
@@ -264,31 +264,29 @@ export default function AIAssistantSidebar() {
         if (!focusText.trim()) {
             focusText = editor.getText();
         }
-        if (!focusText.trim()) return;
+        if (!focusText.trim()) {
+            setAssociativeData(null);
+            setAssociativeError('请先输入内容，或选中一个关键词后再获取灵感。');
+            return;
+        }
 
         setIsAssociating(true);
         setAssociativeData(null);
         setAssociativeError(null);
         try {
-            const result = await generateAssociativeSuggestions(
-                focusText,
-                'anythingllm',
-                { apiKey: apiKeys['anythingllm'], endpoint: endpoints['anythingllm'], model: models['anythingllm'] },
-                // onPartialResult：请求 A 完成后立即更新 UI，不等 B
-                (partial) => setAssociativeData(partial)
-            );
+            const result = await generateAssociativeSuggestions(focusText);
             if (result) {
-                setAssociativeData(result); // 最终合并 A+B
+                setAssociativeData(result);
             } else {
-                setAssociativeError('无法获取联想数据，请检查 API 配置。');
+                setAssociativeError('本地素材库暂未找到相关句式。可选中更具体的业务关键词再试。');
             }
-        } catch (e: any) {
-            console.error("AI Association failed", e);
-            setAssociativeError(`错误: ${e.message || '未知异常'}`);
+        } catch (error: unknown) {
+            console.error('Local association failed', error);
+            setAssociativeError('本地素材检索失败，请稍后重试。');
         } finally {
             setIsAssociating(false);
         }
-    }, [editor, aiProvider, apiKeys, endpoints, models]);
+    }, [editor]);
 
 
     const handleInsertText = (text: string) => {
@@ -490,7 +488,7 @@ export default function AIAssistantSidebar() {
                         {isAssociating && (
                             <div className="flex items-center gap-2 text-blue-600 text-sm p-3 bg-blue-50 rounded-lg">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                正在思考接下来可以怎么写...
+                                正在匹配本地素材...
                             </div>
                         )}
                         {associativeError && (
@@ -500,7 +498,7 @@ export default function AIAssistantSidebar() {
                                 <button onClick={handleGetAssociations} className="ml-auto underline font-bold">重试</button>
                             </div>
                         )}
-                        {!isAssociating && !associativeData && (
+                        {!isAssociating && !associativeData && !associativeError && (
                             <div className="text-center text-sm p-4 text-slate-500 mt-4 border border-blue-100 rounded-lg bg-white shadow-sm">
                                 <div className="mb-4 text-xs font-medium text-blue-600 bg-blue-50 py-1 px-2 rounded-full inline-block">
                                     💡 激发写作思路
@@ -546,10 +544,12 @@ export default function AIAssistantSidebar() {
                                                     <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">
                                                         <SentenceWithHighlights
                                                             text={s.text}
+                                                            keywords={s.keywords}
                                                             onKeywordClick={(word) => handleInsertText(word)}
                                                         />
+                                                        <div className="mt-1.5 text-[11px] text-slate-400">来源：{s.source}</div>
                                                     </div>
-                                                    <div className="absolute right-1 top-1 bottom-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all items-center bg-gradient-to-l from-slate-50 via-slate-50 pl-2">
+                                                    <div className="absolute right-1 top-1 bottom-1 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all items-center bg-gradient-to-l from-slate-50 via-slate-50 pl-2">
                                                         <button
                                                             onClick={() => handleAskConcept(s.text)}
                                                             className="px-1.5 py-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded flex justify-center items-center"
@@ -558,9 +558,9 @@ export default function AIAssistantSidebar() {
                                                             <Bot className="w-3.5 h-3.5" />
                                                         </button>
                                                         <button
-                                                            onClick={() => handleInsertText(s.text.replace(/【|】/g, ''))}
+                                                            onClick={() => handleInsertText(s.text)}
                                                             className="px-1.5 py-1 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded flex justify-center items-center"
-                                                            title="插入整句（自动去除标注符号）"
+                                                            title="插入整句"
                                                         >
                                                             <Check className="w-3.5 h-3.5" />
                                                         </button>
@@ -568,13 +568,6 @@ export default function AIAssistantSidebar() {
                                                 </div>
                                             ))}
                                         </div>
-                                        {/* 后台正在加载第二批时的提示 */}
-                                        {isAssociating && (
-                                            <div className="flex items-center gap-1.5 text-xs text-slate-400 pt-1 border-t border-slate-100">
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                                正在加载更多句子...
-                                            </div>
-                                        )}
                                     </div>
                                 )}
                             </div>

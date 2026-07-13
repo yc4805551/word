@@ -77,6 +77,7 @@ export interface AuthenticityResult {
 export interface AssociativeSentence {
     text: string;
     keywords: string[];
+    source: string;
 }
 
 export interface AssociativeSuggestion {

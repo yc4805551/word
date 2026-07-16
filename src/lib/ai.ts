@@ -7,6 +7,7 @@ import {
     type AuditResult,
     type AuthenticityResult,
     type AssociativeSuggestion,
+    type AssociativeSuggestionsResult,
     type Quiz,
     type LogicExpansion,
     type OutlineResult,
@@ -25,6 +26,7 @@ import { PROMPTS } from './智能画布-提示词';
 import { TRAINING_PROMPTS } from './特训营-提示词';
 import { COMPLETION_PROMPTS } from './智能补全-提示词';
 import knowledgeBase from '../data/knowledge-base.json';
+import { fetchKwikiAssociations, isKwikiApiConfigured, KwikiAssociationError } from './kwikiAssociations';
 
 export function getAIConfig(
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
@@ -860,7 +862,7 @@ function scoreKeywordMatch(query: string, keyword: string): number {
     return 0;
 }
 
-export async function generateAssociativeSuggestions(textContext: string): Promise<AssociativeSuggestion | null> {
+function generateLocalAssociativeSuggestions(textContext: string): AssociativeSuggestion | null {
     const query = normalizeMatchText(textContext.slice(-200));
     if (!query) return null;
 
@@ -893,6 +895,24 @@ export async function generateAssociativeSuggestions(textContext: string): Promi
             source: match.item.source
         }))
     };
+}
+
+export async function generateAssociativeSuggestions(textContext: string): Promise<AssociativeSuggestionsResult> {
+    if (!isKwikiApiConfigured()) {
+        return { suggestion: generateLocalAssociativeSuggestions(textContext), origin: 'local', fallbackReason: 'unconfigured' };
+    }
+
+    try {
+        return { suggestion: await fetchKwikiAssociations(textContext), origin: 'wps' };
+    } catch (error) {
+        if (error instanceof KwikiAssociationError && ['INVALID_CONTEXT', 'ORIGIN_NOT_ALLOWED', 'UNSUPPORTED_MEDIA_TYPE'].includes(error.code)) {
+            return { suggestion: null, origin: 'wps' };
+        }
+        const fallbackReason = error instanceof KwikiAssociationError
+            ? error.code === 'UPSTREAM_TIMEOUT' ? 'timeout' : error.code === 'INVALID_RESPONSE' ? 'invalid-response' : error.code === 'NETWORK' ? 'network' : 'http'
+            : 'network';
+        return { suggestion: generateLocalAssociativeSuggestions(textContext), origin: 'local', fallbackReason };
+    }
 }
 
 /**

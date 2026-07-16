@@ -80,9 +80,23 @@ export interface AssociativeSentence {
     source: string;
 }
 
+export interface KnowledgeSource {
+    title: string;
+    url: string;
+}
+
 export interface AssociativeSuggestion {
     directions: string[];
     sentences: AssociativeSentence[];
+    sources?: KnowledgeSource[];
+}
+
+export type AssociativeSuggestionOrigin = 'wps' | 'local';
+
+export interface AssociativeSuggestionsResult {
+    suggestion: AssociativeSuggestion | null;
+    origin: AssociativeSuggestionOrigin;
+    fallbackReason?: 'unconfigured' | 'network' | 'timeout' | 'http' | 'invalid-response';
 }
 
 export interface Quiz {

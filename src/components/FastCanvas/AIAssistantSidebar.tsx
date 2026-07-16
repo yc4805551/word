@@ -111,6 +111,7 @@ export default function AIAssistantSidebar() {
     const [associativeData, setAssociativeData] = useState<AssociativeSuggestion | null>(null);
     const [isAssociating, setIsAssociating] = useState(false);
     const [associativeError, setAssociativeError] = useState<string | null>(null);
+    const [associativeNotice, setAssociativeNotice] = useState<string | null>(null);
     const [chatInput, setChatInput] = useState('');
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
@@ -260,10 +261,6 @@ export default function AIAssistantSidebar() {
             focusText = state.doc.textBetween(Math.max(0, from - 200), from, ' ');
         }
 
-        // Fallback to full document if still empty
-        if (!focusText.trim()) {
-            focusText = editor.getText();
-        }
         if (!focusText.trim()) {
             setAssociativeData(null);
             setAssociativeError('请先输入内容，或选中一个关键词后再获取灵感。');
@@ -273,16 +270,20 @@ export default function AIAssistantSidebar() {
         setIsAssociating(true);
         setAssociativeData(null);
         setAssociativeError(null);
+        setAssociativeNotice(null);
         try {
             const result = await generateAssociativeSuggestions(focusText);
-            if (result) {
-                setAssociativeData(result);
+            if (result.suggestion) {
+                setAssociativeData(result.suggestion);
+                if (result.origin === 'local' && result.fallbackReason && result.fallbackReason !== 'unconfigured') {
+                    setAssociativeNotice('WPS 知识库服务暂不可用，已展示本地素材。');
+                }
             } else {
-                setAssociativeError('本地素材库暂未找到相关句式。可选中更具体的业务关键词再试。');
+                setAssociativeError('暂未找到相关句式。可选中更具体的业务关键词再试。');
             }
         } catch (error: unknown) {
-            console.error('Local association failed', error);
-            setAssociativeError('本地素材检索失败，请稍后重试。');
+            console.error('Association lookup failed', error);
+            setAssociativeError('写作素材检索失败，请稍后重试。');
         } finally {
             setIsAssociating(false);
         }
@@ -488,7 +489,13 @@ export default function AIAssistantSidebar() {
                         {isAssociating && (
                             <div className="flex items-center gap-2 text-blue-600 text-sm p-3 bg-blue-50 rounded-lg">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                正在匹配本地素材...
+                                正在检索写作素材...
+                            </div>
+                        )}
+                        {associativeNotice && (
+                            <div className="text-xs text-amber-700 p-3 bg-amber-50 rounded-lg border border-amber-100 flex items-center gap-2">
+                                <Lightbulb className="w-3.5 h-3.5 shrink-0" />
+                                <span>{associativeNotice}</span>
                             </div>
                         )}
                         {associativeError && (
@@ -539,6 +546,21 @@ export default function AIAssistantSidebar() {
                                             <span className="text-slate-400 font-normal">{associativeData.sentences.length} 条</span>
                                         </div>
                                         <div className="space-y-1.5">
+                                            {associativeData.sources && associativeData.sources.length > 0 && (
+                                                <div className="flex flex-wrap gap-2 pb-1">
+                                                    {associativeData.sources.map((source) => (
+                                                        <a
+                                                            key={`${source.title}-${source.url}`}
+                                                            href={source.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-[11px] text-blue-600 hover:text-blue-700 underline"
+                                                        >
+                                                            来源：{source.title}
+                                                        </a>
+                                                    ))}
+                                                </div>
+                                            )}
                                             {associativeData.sentences.map((s, i) => (
                                                 <div key={i} className="group relative pr-14">
                                                     <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 leading-relaxed">

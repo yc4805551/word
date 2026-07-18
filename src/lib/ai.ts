@@ -702,27 +702,6 @@ export async function checkAuthenticity(
         return null;
     }
 }
-export async function chatWithDocument(
-    history: ChatMessage[],
-    documentContext: string,
-    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
-    overrides?: { apiKey?: string; endpoint?: string; model?: string }
-): Promise<AIResponse> {
-    const config = getAIConfig(provider, overrides);
-    if (!normalizeApiKey(config.apiKey)) return { success: false, error: `未配置 ${provider} 的 API Key，请在“系统设置”中填写。` };
-
-    const messages = PROMPTS.docChat(documentContext, history);
-
-    try {
-        const text = await callChatCompletion(messages, config, undefined);
-        if (!text) return { success: false, error: "AI 返回了空消息。" };
-        return { success: true, data: text };
-    } catch (e) {
-        const msg = getErrorMessage(e);
-        if (msg.includes('AbortError')) return { success: false, error: '请求超时，请稍后重试。' };
-        return { success: false, error: msg || "连接 AI 服务失败。" };
-    }
-}
 
 /**
  * 从 AnythingLLM「求是杂志」工作区检索真实句子素材（RAG 检索增强生成）

@@ -27,7 +27,7 @@ npm run api:kwiki
 curl http://127.0.0.1:8787/healthz
 ```
 
-API 仅支持 `POST /api/associations`。浏览器只发送少量选中文本或光标前内容；服务端固定知识库 ID，调用 `kwiki-cli kwiki knowledge-view-ask`，不会接受客户端传来的命令、令牌或任意知识库 ID。
+API 支持 `POST /api/associations` 与 `POST /api/document-chat`。浏览器只发送少量选中文本/光标前内容，或受限的问答上下文；服务端固定知识库 ID，调用 `kwiki-cli kwiki knowledge-view-ask`，不会接受客户端传来的命令、令牌或任意知识库 ID。
 
 ## 配置 Tailscale Serve
 

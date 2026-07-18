@@ -1,6 +1,7 @@
 export interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
     content: string;
+    sources?: KnowledgeSource[];
 }
 
 export interface Segment {

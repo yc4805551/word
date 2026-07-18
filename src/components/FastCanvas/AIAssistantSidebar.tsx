@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb, Download, Trash2 } from 'lucide-react';
 
-import { polishText, chatWithDocument, generateAssociativeSuggestions, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
+import { polishText, generateAssociativeSuggestions, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
+import { chatWithKwikiDocument, KwikiDocumentChatError } from '../../lib/kwikiDocumentChat';
 
 import { useSettings } from '../../context/SettingsContext';
 import ReactMarkdown from 'react-markdown';
@@ -77,12 +78,27 @@ function ChatMessageItem({ msg }: { msg: ChatMessage }) {
                         </div>
                         {isLong && (
                             <div className={`flex justify-center mt-2 relative z-10 ${isExpanded ? 'border-t border-slate-200 pt-2' : ''}`}>
-                                <button 
+                                <button
                                     onClick={() => setIsExpanded(!isExpanded)}
                                     className="text-blue-600 hover:text-blue-700 font-medium text-xs bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm"
                                 >
                                     {isExpanded ? '收起内容' : '展开阅读完整内容'}
                                 </button>
+                            </div>
+                        )}
+                        {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-slate-200 flex flex-wrap gap-x-2 gap-y-1 text-[11px]">
+                                {msg.sources.map((source) => (
+                                    <a
+                                        key={`${source.title}-${source.url}`}
+                                        href={source.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-700 underline"
+                                    >
+                                        WPS 来源：{source.title}
+                                    </a>
+                                ))}
                             </div>
                         )}
                     </>
@@ -297,46 +313,31 @@ export default function AIAssistantSidebar() {
 
     const sendChatMessage = async (msgText: string) => {
         if (!editor || isChatLoading) return;
-        
+
         const userMsg: ChatMessage = { role: 'user', content: msgText };
         setChatHistory(prev => [...prev, userMsg]);
         setIsChatLoading(true);
         if (mode !== 'chat') setMode('chat');
 
-        // 知识库无匹配时的降级标识
-        const isKbFallback = (text: string) =>
-            text.includes('There is no relevant information') ||
-            text.includes('未能在当前专属文献库中完全匹配');
-
         try {
-            const documentContext = editor.getText();
-            const fullHistory = [...chatHistory, userMsg];
-
-            // 第一步：优先问知识库（anythingllm）
-            let response = await chatWithDocument(
-                fullHistory,
-                documentContext,
-                'anythingllm',
-                { apiKey: apiKeys['anythingllm'], endpoint: endpoints['anythingllm'], model: models['anythingllm'] }
-            );
-
-            // 第二步：知识库无匹配时，自动降级到主要 AI
-            if (response.success && response.data && isKbFallback(response.data)) {
-                response = await chatWithDocument(
-                    fullHistory,
-                    documentContext,
-                    aiProvider,
-                    { apiKey: apiKeys[aiProvider], endpoint: endpoints[aiProvider], model: models[aiProvider] }
-                );
-            }
-
-            if (response.success && response.data) {
-                setChatHistory(prev => [...prev, { role: 'assistant', content: response.data! }]);
+            const result = await chatWithKwikiDocument(msgText, editor.getText(), [...chatHistory, userMsg]);
+            if (result.matched && result.answer) {
+                setChatHistory(prev => [...prev, { role: 'assistant', content: result.answer, sources: result.sources }]);
             } else {
-                setChatHistory(prev => [...prev, { role: 'assistant', content: `抱歉，遇到了一些麻烦：${response.error || '联络 AI 失败'}` }]);
+                setChatHistory(prev => [...prev, { role: 'assistant', content: '当前 WPS 知识库未检索到可支撑此问题的资料；请补充更具体的主题、政策名称或业务场景后重试。' }]);
             }
-        } catch (err) {
-            setChatHistory(prev => [...prev, { role: 'assistant', content: '网络异常，请检查连接。' }]);
+        } catch (error) {
+            const code = error instanceof KwikiDocumentChatError ? error.code : 'NETWORK';
+            const message = code === 'UNCONFIGURED'
+                ? 'WPS 知识库服务未配置。'
+                : code === 'ORIGIN_NOT_ALLOWED'
+                    ? '当前设备未获 WPS 私网服务访问授权。'
+                    : code === 'UPSTREAM_TIMEOUT'
+                        ? 'WPS 知识库响应超时，请确认 Tailscale 与本机服务后重试。'
+                        : code === 'NETWORK'
+                            ? '无法连接 WPS 私网服务，请确认已加入 Tailnet 且本机服务正在运行。'
+                            : 'WPS 知识库服务暂不可用，请稍后重试。';
+            setChatHistory(prev => [...prev, { role: 'assistant', content: message }]);
         } finally {
             setIsChatLoading(false);
         }

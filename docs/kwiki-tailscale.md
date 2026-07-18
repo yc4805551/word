@@ -48,13 +48,13 @@ tailscale serve --https=443 http://127.0.0.1:8787
 
 ## 配置 GitHub Pages 前端
 
-在 GitHub 仓库的 **Actions variables** 新增：
+此机器当前的私网 HTTPS 地址为：
 
 ```text
-KWIKI_API_BASE_URL=https://<设备名>.<tailnet>.ts.net
+https://mac-agent.tail36f59d.ts.net
 ```
 
-该地址会在构建时作为 `VITE_KWIKI_API_BASE_URL` 写入页面，因此不是秘密。它不能包含令牌、用户名、密码或任何其他凭证。更新变量后重新运行 GitHub Pages 部署。
+GitHub Pages 构建工作流已使用该地址。设备名称或 Tailnet 改变时，请同步更新 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) 并重新部署。
 
 ## 故障排查
 

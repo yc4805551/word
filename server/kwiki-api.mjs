@@ -7,7 +7,7 @@ const maxBodyBytes = 16_384;
 const maxContextLength = 800;
 const maxSentences = 6;
 const maxDirections = 3;
-const timeoutMs = 20_000;
+const timeoutMs = 60_000;
 const allowedOrigins = new Set(
     (process.env.KWIKI_CORS_ORIGINS ?? 'https://yc4805551.github.io,http://localhost:5173')
         .split(',')

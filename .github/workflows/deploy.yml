@@ -49,7 +49,7 @@ jobs:
           VITE_DEPOCR_API_KEY: ${{ secrets.VITE_DEPOCR_API_KEY }}
           VITE_DEPOCR_ENDPOINT: ${{ secrets.VITE_DEPOCR_ENDPOINT }}
           VITE_DEPOCR_MODEL: ${{ secrets.VITE_DEPOCR_MODEL }}
-          VITE_KWIKI_API_BASE_URL: ${{ vars.KWIKI_API_BASE_URL }}
+          VITE_KWIKI_API_BASE_URL: https://mac-agent.tail36f59d.ts.net
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

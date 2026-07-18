@@ -24,7 +24,7 @@ npm run api:kwiki
 ```
 
 3. 使用 Tailscale Serve 将本机回环服务以 Tailnet HTTPS 地址提供；不要启用 Funnel。
-4. 在 GitHub Repository Variable `KWIKI_API_BASE_URL` 填入该 HTTPS 地址，重新部署页面。
+4. GitHub Pages 已使用此机器的 Tailscale HTTPS 地址 `https://mac-agent.tail36f59d.ts.net`；如果设备名称或 Tailnet 发生变化，请同步更新 [部署工作流](.github/workflows/deploy.yml) 并重新部署页面。
 
 详见 [Tailscale 私有 WPS 知识库服务](docs/kwiki-tailscale.md)。
 

@@ -1,6 +1,6 @@
 import type { AssociativeSuggestion } from './ai-types';
 
-const timeoutMs = 25_000;
+const timeoutMs = 60_000;
 const maxContextLength = 800;
 
 type KwikiApiErrorCode = 'INVALID_CONTEXT' | 'ORIGIN_NOT_ALLOWED' | 'UNSUPPORTED_MEDIA_TYPE' | 'UPSTREAM_TIMEOUT' | 'UPSTREAM_FAILURE' | 'NOT_FOUND';

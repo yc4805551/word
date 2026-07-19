@@ -324,7 +324,7 @@ export default function AIAssistantSidebar() {
             if (result.matched && result.answer) {
                 setChatHistory(prev => [...prev, { role: 'assistant', content: result.answer, sources: result.sources }]);
             } else {
-                setChatHistory(prev => [...prev, { role: 'assistant', content: '当前 WPS 知识库未检索到可支撑此问题的资料；请补充更具体的主题、政策名称或业务场景后重试。' }]);
+                setChatHistory(prev => [...prev, { role: 'assistant', content: '当前 WPS 知识库未找到直接或相关的可参考材料。可补充具体主题、政策名称、单位/地区、时间范围或业务场景后重试。' }]);
             }
         } catch (error) {
             const code = error instanceof KwikiDocumentChatError ? error.code : 'NETWORK';

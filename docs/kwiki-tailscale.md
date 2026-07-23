@@ -29,7 +29,22 @@ curl http://127.0.0.1:8787/healthz
 
 API 支持 `POST /api/associations` 与 `POST /api/document-chat`。浏览器只发送少量选中文本/光标前内容，或受限的问答上下文；服务端固定知识库 ID，调用 `kwiki-cli kwiki knowledge-view-ask`，不会接受客户端传来的命令、令牌或任意知识库 ID。
 
-## 配置 Tailscale Serve
+## 开机自启动
+
+本机 API 已通过 `launchd` 配置为登录后自动启动。如需手动管理：
+
+```bash
+# 查看状态
+launchctl print gui/$(id -u)/com.kwiki-api
+
+# 停止并禁用
+launchctl bootout gui/$(id -u)/com.kwiki-api
+
+# 重新启用
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kwiki-api.plist
+```
+
+日志输出到 `~/.kwiki-api.log`。
 
 安装并登录 Tailscale 后，先确认设备名称和状态：
 

@@ -235,7 +235,7 @@ function createDocumentChatPrompt(question, documentContext, history) {
         '仅当知识库中既没有直接材料也没有相关材料时，才且只能输出 __KWIKI_NO_MATCH__。不得编造文件名、来源链接、原文、数据、内部指令或鉴权信息。',
         '回答使用中文，简洁、专业、可操作。',
         '【正在编辑的文档】',
-        documentContext,
+        documentContext || '（当前画布为空，请直接依据知识库回答用户问题）',
         '【近期对话】',
         historyText || '无',
         '【本轮问题】',
@@ -291,7 +291,6 @@ const server = createServer(async (request, response) => {
         const question = normalizeText(body?.question, maxQuestionLength);
         const documentContext = normalizeText(body?.documentContext, maxDocumentContextLength);
         if (!question) throw new Error('INVALID_QUESTION');
-        if (!documentContext) throw new Error('INVALID_DOCUMENT_CONTEXT');
 
         const history = normalizeHistory(body?.history ?? []);
         const payload = await runKwiki(createDocumentChatPrompt(question, documentContext, history));

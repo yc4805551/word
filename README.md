@@ -9,9 +9,9 @@ npm install
 npm run dev
 ```
 
-## WPS 知识库灵感联想
+## WPS 知识库与 Gemini 文件助手
 
-快速画布的“灵感联想”和“写作问答”均可通过一台加入 Tailnet 的本机服务检索 WPS 知识库。GitHub Pages 仅保留公开的服务地址；WPS 凭证始终留在运行服务的电脑上。
+快速画布的“灵感联想”和“写作问答”可通过一台加入 Tailnet 的本机服务检索 WPS 知识库；Gemini 文件助手仅能读写 `/Users/youngyang/macagent/Gemini CLI`，禁止删除和目录外访问。GitHub Pages 只保留公开的服务地址，凭证始终留在运行服务的电脑上。
 
 1. 在服务电脑安装、登录 `kwiki-cli`，或为服务进程配置非公开的 `X_KWIKI_AUTH`。
 2. 配置服务环境变量并启动：

@@ -39,7 +39,6 @@ jobs:
           VITE_DEEPSEEK_API_KEY: ${{ secrets.VITE_DEEPSEEK_API_KEY }}
           VITE_DEEPSEEK_ENDPOINT: ${{ secrets.VITE_DEEPSEEK_ENDPOINT }}
           VITE_DEEPSEEK_MODEL: ${{ secrets.VITE_DEEPSEEK_MODEL }}
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
           VITE_ALI_API_KEY: ${{ secrets.VITE_ALI_API_KEY }}
           VITE_ALI_ENDPOINT: ${{ secrets.VITE_ALI_ENDPOINT }}
           VITE_ALI_MODEL: ${{ secrets.VITE_ALI_MODEL }}

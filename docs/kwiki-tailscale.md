@@ -27,7 +27,26 @@ npm run api:kwiki
 curl http://127.0.0.1:8787/healthz
 ```
 
-API 支持 `POST /api/associations` 与 `POST /api/document-chat`。浏览器只发送少量选中文本/光标前内容，或受限的问答上下文；服务端固定知识库 ID，调用 `kwiki-cli kwiki knowledge-view-ask`，不会接受客户端传来的命令、令牌或任意知识库 ID。
+API 支持 `POST /api/associations`、`POST /api/document-chat` 与 `POST /api/gemini-chat`。浏览器只发送少量选中文本/光标前内容，或受限的问答上下文；服务端固定知识库 ID，调用 `kwiki-cli kwiki knowledge-view-ask`，不会接受客户端传来的命令、令牌或任意知识库 ID。
+
+## Gemini CLI 文件助手
+
+Gemini CLI 只允许操作 `/Users/youngyang/macagent/Gemini CLI`：
+
+- 可以列出、读取和搜索该目录内文件；
+- 可以创建非空新文件；
+- 现有文件只能用精确替换修改，禁止覆盖、清空、大幅删减和批量缩短；
+- 禁止删除、重命名、移动、Shell、Web、MCP、子代理和目录外访问；
+- macOS `strict-proxied` Seatbelt 沙箱提供操作系统级目录隔离；
+- checkpoint 自动开启，用于恢复修改前版本。
+
+Gemini API Key 只保存在本机 `~/.gemini-smart-canvas/env`：
+
+```bash
+GEMINI_API_KEY="你的有效 Key"
+```
+
+该文件权限应为 `600`，不要把 Key 写入 `VITE_*`、GitHub、项目文件或浏览器。
 
 ## 开机自启动
 

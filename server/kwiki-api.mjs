@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import https from 'node:https';
+import http from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
 const host = '127.0.0.1';
@@ -29,6 +30,13 @@ const geminiWorkingDir = '/Users/youngyang/macagent/Gemini CLI';
 const geminiModel = process.env.GEMINI_CLI_MODEL || 'gemini-2.0-flash';
 const maxConcurrentGemini = 2;
 let geminiActiveCount = 0;
+
+// DMXAPI 配置（支持多个 LLM 提供商的统一代理）
+const dmxapiBaseUrl = process.env.DMXAPI_BASE_URL || 'https://www.dmxapi.cn';
+const dmxapiApiKey = process.env.DMXAPI_API_KEY || 'sk-ZuTW638xmzHWu3dIcqp8pC7CVXHinLwWmMAwbUkOGyPHMJcZ';
+const dmxapiModel = process.env.DMXAPI_MODEL || 'gpt-4o-mini';
+const maxConcurrentDmxapi = 5;
+let dmxapiActiveCount = 0;
 
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error('KWIKI_API_PORT must be a valid TCP port.');
@@ -222,55 +230,145 @@ function runKwiki(prompt) {
     });
 }
 
-async function runGemini(prompt) {
-    if (!process.env.GEMINI_API_KEY?.trim()) {
-        throw new Error('GEMINI_AUTH_REQUIRED');
+async function runDmxapi(prompt, conversationHistory = []) {
+    if (dmxapiActiveCount >= maxConcurrentDmxapi) {
+        throw new Error('BUSY');
     }
+    dmxapiActiveCount++;
+
+    return new Promise((resolve, reject) => {
+        const messages = [
+            ...conversationHistory.map(msg => ({
+                role: msg.role === 'user' ? 'user' : 'assistant',
+                content: msg.content
+            })),
+            { role: 'user', content: prompt }
+        ];
+
+        const body = JSON.stringify({
+            model: dmxapiModel,
+            messages: messages,
+            temperature: 0.7,
+            max_tokens: 2048,
+            stream: false
+        });
+
+        const url = new URL(`${dmxapiBaseUrl}/v1/chat/completions`);
+        const isHttps = url.protocol === 'https:';
+        const client = isHttps ? https : http;
+
+        const options = {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${dmxapiApiKey}`,
+                'Content-Length': Buffer.byteLength(body)
+            }
+        };
+
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            req.destroy();
+        }, timeoutMs);
+
+        const req = client.request(url, options, (res) => {
+            const chunks = [];
+            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('end', () => {
+                clearTimeout(timer);
+                dmxapiActiveCount--;
+                try {
+                    const text = Buffer.concat(chunks).toString('utf8');
+                    if (res.statusCode !== 200) {
+                        console.error('[DMXAPI] HTTP', res.statusCode, text.slice(0, 300));
+                        reject(new Error('LLM_UNAVAILABLE'));
+                        return;
+                    }
+                    const payload = JSON.parse(text);
+                    const answer = payload?.choices?.[0]?.message?.content?.trim() || '';
+                    if (!answer) {
+                        reject(new Error('LLM_UNAVAILABLE'));
+                        return;
+                    }
+                    resolve(answer);
+                } catch (err) {
+                    console.error('[DMXAPI] parse error', err.message);
+                    reject(new Error('LLM_UNAVAILABLE'));
+                }
+            });
+        });
+
+        req.on('error', (err) => {
+            clearTimeout(timer);
+            dmxapiActiveCount--;
+            console.error('[DMXAPI] request error', err.message);
+            reject(new Error('LLM_UNAVAILABLE'));
+        });
+
+        if (timedOut) {
+            clearTimeout(timer);
+            dmxapiActiveCount--;
+            reject(new Error('UPSTREAM_TIMEOUT'));
+            return;
+        }
+
+        req.write(body);
+        req.end();
+    });
+}
+
+async function runGemini(prompt) {
     if (geminiActiveCount >= maxConcurrentGemini) {
         throw new Error('BUSY');
     }
     geminiActiveCount++;
     return new Promise((resolve, reject) => {
-        const apiKey = process.env.GEMINI_API_KEY.trim();
-        const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] });
-        const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
-        const agent = proxyUrl ? new HttpsProxyAgent(proxyUrl) : undefined;
-        const options = {
-            hostname: 'generativelanguage.googleapis.com',
-            path: `/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-            ...(agent ? { agent } : {}),
-        };
-        const timer = setTimeout(() => { req.destroy(); reject(new Error('UPSTREAM_TIMEOUT')); }, timeoutMs);
-        const req = https.request(options, (res) => {
-            const chunks = [];
-            res.on('data', (chunk) => chunks.push(chunk));
-            res.on('end', () => {
-                clearTimeout(timer);
-                geminiActiveCount--;
-                try {
-                    const text = Buffer.concat(chunks).toString('utf8');
-                    if (res.statusCode !== 200) {
-                        console.error('[Gemini] HTTP', res.statusCode, text.slice(0, 300));
-                        reject(new Error('GEMINI_UNAVAILABLE'));
-                        return;
-                    }
-                    const payload = JSON.parse(text);
-                    const answer = payload?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-                    if (!answer) { reject(new Error('GEMINI_UNAVAILABLE')); return; }
-                    resolve(answer);
-                } catch { reject(new Error('GEMINI_UNAVAILABLE')); }
-            });
+        const args = ['-p', prompt, '--model', geminiModel, '--skip-trust'];
+        const child = spawn('gemini', args, {
+            shell: false,
+            stdio: ['ignore', 'pipe', 'pipe'],
+            cwd: geminiWorkingDir,
+            env: Object.fromEntries(
+                Object.entries(process.env).filter(([k]) => !['GEMINI_API_KEY', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'].includes(k))
+            ),
         });
-        req.on('error', (err) => {
+        const stdout = [];
+        const stderr = [];
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGTERM');
+        }, timeoutMs);
+
+        child.stdout.on('data', (chunk) => stdout.push(chunk));
+        child.stderr.on('data', (chunk) => stderr.push(chunk));
+        child.on('error', (err) => {
             clearTimeout(timer);
             geminiActiveCount--;
-            console.error('[Gemini] req error', err.message);
+            console.error('[Gemini] spawn error', err.message);
             reject(new Error('GEMINI_UNAVAILABLE'));
         });
-        req.write(body);
-        req.end();
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            geminiActiveCount--;
+            const stderrText = Buffer.concat(stderr).toString('utf8').trim();
+            if (stderrText) console.error('[Gemini]', stderrText.slice(0, 300));
+
+            if (code !== 0) {
+                const reason = timedOut ? 'UPSTREAM_TIMEOUT' : 'GEMINI_UNAVAILABLE';
+                if (stderrText.includes('quota') || stderrText.includes('429')) {
+                    reject(new Error('GEMINI_QUOTA_EXCEEDED'));
+                } else if (stderrText.includes('auth') || stderrText.includes('login') || stderrText.includes('credential')) {
+                    reject(new Error('GEMINI_AUTH_FAILED'));
+                } else {
+                    reject(new Error(reason));
+                }
+                return;
+            }
+            const answer = Buffer.concat(stdout).toString('utf8').trim();
+            resolve(answer || '（Gemini 未返回内容）');
+        });
     });
 }
 
@@ -316,11 +414,22 @@ function createGeminiChatPrompt(question, documentContext, history) {
     ].join('\n');
 }
 
+function createDmxapiChatPrompt(question, documentContext) {
+    return [
+        '你是智能写作助手。帮助用户进行公文写作、内容优化和文本润色。',
+        documentContext ? `【当前编辑文档】\n${documentContext}` : '',
+        `【用户问题】\n${question}`,
+    ].filter(Boolean).join('\n\n');
+}
+
 function getErrorStatus(code) {
     if (code === 'BODY_TOO_LARGE') return 413;
     if (['INVALID_JSON', 'INVALID_CONTEXT', 'INVALID_QUESTION', 'INVALID_DOCUMENT_CONTEXT', 'INVALID_HISTORY'].includes(code)) return 400;
     if (code === 'BUSY') return 429;
+    if (code === 'GEMINI_QUOTA_EXCEEDED') return 429;
+    if (code === 'GEMINI_AUTH_FAILED') return 401;
     if (code === 'UPSTREAM_TIMEOUT') return 504;
+    if (code === 'LLM_UNAVAILABLE') return 502;
     return 502;
 }
 
@@ -332,7 +441,7 @@ const server = createServer(async (request, response) => {
         return;
     }
 
-    if (request.method === 'OPTIONS' && ['/api/associations', '/api/document-chat', '/api/gemini-chat'].includes(request.url)) {
+    if (request.method === 'OPTIONS' && ['/api/associations', '/api/document-chat', '/api/gemini-chat', '/api/dmxapi-chat'].includes(request.url)) {
         response.writeHead(204, corsHeaders);
         response.end();
         return;
@@ -343,7 +452,7 @@ const server = createServer(async (request, response) => {
         return;
     }
 
-    if (request.method !== 'POST' || !['/api/associations', '/api/document-chat', '/api/gemini-chat'].includes(request.url)) {
+    if (request.method !== 'POST' || !['/api/associations', '/api/document-chat', '/api/gemini-chat', '/api/dmxapi-chat'].includes(request.url)) {
         sendError(response, 404, 'NOT_FOUND', corsHeaders);
         return;
     }
@@ -367,6 +476,13 @@ const server = createServer(async (request, response) => {
         if (!question) throw new Error('INVALID_QUESTION');
 
         const history = normalizeHistory(body?.history ?? []);
+
+        if (request.url === '/api/dmxapi-chat') {
+            const answer = await runDmxapi(createDmxapiChatPrompt(question, documentContext), history);
+            sendJson(response, 200, { answer, provider: 'dmxapi' }, corsHeaders);
+            return;
+        }
+
         if (request.url === '/api/gemini-chat') {
             const answer = await runGemini(createGeminiChatPrompt(question, documentContext, history));
             sendJson(response, 200, { answer, provider: 'gemini-cli' }, corsHeaders);

@@ -1,0 +1,28 @@
+{
+  "mcpServers": {},
+  "security": {
+    "auth": {
+      "selectedType": "gemini-api-key"
+    }
+  },
+  "general": {
+    "checkpointing": {
+      "enabled": true
+    }
+  },
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace",
+        "hooks": [
+          {
+            "name": "workspace-write-guard",
+            "type": "command",
+            "command": "node /Users/youngyang/project/word/server/gemini-file-guard.mjs",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

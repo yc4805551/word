@@ -1,0 +1,31 @@
+[[rule]]
+toolName = "*"
+decision = "deny"
+priority = 900
+interactive = false
+denyMessage = "Only approved file operations inside the Gemini CLI workspace are allowed."
+
+[[rule]]
+toolName = "*"
+mcpName = "*"
+decision = "deny"
+priority = 999
+interactive = false
+denyMessage = "MCP tools are disabled for the Smart Canvas Gemini service."
+
+[[rule]]
+toolName = ["list_directory", "read_file", "read_many_files", "glob", "grep_search"]
+decision = "allow"
+priority = 990
+interactive = false
+
+[[rule]]
+toolName = ["replace", "write_file"]
+decision = "allow"
+priority = 990
+interactive = false
+
+[rule.safety_checker]
+type = "in-process"
+name = "allowed-path"
+required_context = ["environment"]

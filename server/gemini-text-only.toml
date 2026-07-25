@@ -1,5 +1,0 @@
-[[rule]]
-toolName = "*"
-decision = "deny"
-priority = 999
-denyMessage = "Tools are disabled for the Smart Canvas Gemini service."

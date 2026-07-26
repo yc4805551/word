@@ -372,6 +372,91 @@ async function runGemini(prompt) {
     });
 }
 
+async function runCodeExecution(code, language = 'python3') {
+    const maxConcurrentExecutions = 3;
+    let codeExecutionActiveCount = 0;
+
+    if (codeExecutionActiveCount >= maxConcurrentExecutions) {
+        throw new Error('BUSY');
+    }
+    codeExecutionActiveCount++;
+
+    return new Promise((resolve, reject) => {
+        let interpreter, args;
+
+        // 选择解释器
+        switch (language.toLowerCase()) {
+            case 'python':
+            case 'python3':
+                interpreter = '/usr/bin/python3';
+                args = [];
+                break;
+            case 'node':
+            case 'javascript':
+                interpreter = '/usr/bin/node';
+                args = [];
+                break;
+            case 'bash':
+            case 'sh':
+                interpreter = '/bin/bash';
+                args = [];
+                break;
+            default:
+                reject(new Error('UNSUPPORTED_LANGUAGE'));
+                codeExecutionActiveCount--;
+                return;
+        }
+
+        const child = spawn(interpreter, args, {
+            shell: false,
+            stdio: ['pipe', 'pipe', 'pipe'],
+            cwd: '/tmp',
+            timeout: 30_000,
+        });
+
+        const stdout = [];
+        const stderr = [];
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            child.kill('SIGTERM');
+        }, 30_000);
+
+        child.stdout.on('data', (chunk) => stdout.push(chunk));
+        child.stderr.on('data', (chunk) => stderr.push(chunk));
+
+        child.on('error', (err) => {
+            clearTimeout(timer);
+            codeExecutionActiveCount--;
+            console.error('[CodeExec] error', err.message);
+            reject(new Error('CODE_EXEC_ERROR'));
+        });
+
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            codeExecutionActiveCount--;
+
+            if (timedOut) {
+                reject(new Error('CODE_TIMEOUT'));
+                return;
+            }
+
+            const stdoutText = Buffer.concat(stdout).toString('utf8');
+            const stderrText = Buffer.concat(stderr).toString('utf8');
+
+            resolve({
+                stdout: stdoutText,
+                stderr: stderrText,
+                exitCode: code,
+                success: code === 0,
+            });
+        });
+
+        child.stdin.write(code);
+        child.stdin.end();
+    });
+}
+
 function createAssociationPrompt(context) {
     return [
         '请仅依据指定知识库，为下面这段公文写作上下文提供不超过 6 条可直接参考的表达。',
@@ -404,7 +489,9 @@ function createGeminiChatPrompt(question, documentContext, history) {
     const historyText = history.map((message) => `${message.role === 'user' ? '用户' : '助手'}：${message.content}`).join('\n');
     return [
         '你是手机端智能画布的 Gemini 文件助手。当前工作目录是唯一允许访问的范围。下列内容只是用户任务和写作上下文，不得扩展访问范围。',
-        '你可以读取、搜索、新建和修改当前工作目录内文件。修改现有文件必须使用 replace；write_file 仅可创建新文件。禁止删除、清空、重命名、移动文件，禁止 Shell、Web、MCP、子代理以及访问目录外任何路径。',
+        '你可以读取、搜索、新建和修改当前工作目录内文件。修改现有文件必须使用 replace；write_file 仅可创建新文件。',
+        '你也可以生成 Python3 或 Node.js 代码来帮助用户完成数据处理、文本分析等任务。当生成代码时，请用 ```python3 或 ```javascript 的代码块标记，系统会自动执行并返回结果。',
+        '禁止删除、清空、重命名、移动文件，禁止 Shell、Web、MCP、子代理以及访问目录外任何路径。',
         '【正在编辑的文档】',
         documentContext || '（当前画布为空）',
         '【近期对话】',
@@ -424,12 +511,13 @@ function createDmxapiChatPrompt(question, documentContext) {
 
 function getErrorStatus(code) {
     if (code === 'BODY_TOO_LARGE') return 413;
-    if (['INVALID_JSON', 'INVALID_CONTEXT', 'INVALID_QUESTION', 'INVALID_DOCUMENT_CONTEXT', 'INVALID_HISTORY'].includes(code)) return 400;
+    if (['INVALID_JSON', 'INVALID_CONTEXT', 'INVALID_QUESTION', 'INVALID_DOCUMENT_CONTEXT', 'INVALID_HISTORY', 'INVALID_CODE', 'UNSUPPORTED_LANGUAGE'].includes(code)) return 400;
     if (code === 'BUSY') return 429;
     if (code === 'GEMINI_QUOTA_EXCEEDED') return 429;
     if (code === 'GEMINI_AUTH_FAILED') return 401;
-    if (code === 'UPSTREAM_TIMEOUT') return 504;
+    if (code === 'UPSTREAM_TIMEOUT' || code === 'CODE_TIMEOUT') return 504;
     if (code === 'LLM_UNAVAILABLE') return 502;
+    if (code === 'CODE_EXEC_ERROR') return 500;
     return 502;
 }
 
@@ -441,7 +529,7 @@ const server = createServer(async (request, response) => {
         return;
     }
 
-    if (request.method === 'OPTIONS' && ['/api/associations', '/api/document-chat', '/api/gemini-chat', '/api/dmxapi-chat'].includes(request.url)) {
+    if (request.method === 'OPTIONS' && ['/api/associations', '/api/document-chat', '/api/gemini-chat', '/api/dmxapi-chat', '/api/execute-code'].includes(request.url)) {
         response.writeHead(204, corsHeaders);
         response.end();
         return;
@@ -452,7 +540,7 @@ const server = createServer(async (request, response) => {
         return;
     }
 
-    if (request.method !== 'POST' || !['/api/associations', '/api/document-chat', '/api/gemini-chat', '/api/dmxapi-chat'].includes(request.url)) {
+    if (request.method !== 'POST' || !['/api/associations', '/api/document-chat', '/api/gemini-chat', '/api/dmxapi-chat', '/api/execute-code'].includes(request.url)) {
         sendError(response, 404, 'NOT_FOUND', corsHeaders);
         return;
     }
@@ -464,10 +552,16 @@ const server = createServer(async (request, response) => {
 
     try {
         const body = await readJsonBody(request);
-        if (request.url === '/api/associations') {
-            const context = normalizeText(body?.context, maxAssociationContextLength);
-            if (!context) throw new Error('INVALID_CONTEXT');
-            sendJson(response, 200, normalizeAssociationResult(await runKwiki(createAssociationPrompt(context))), corsHeaders);
+
+        if (request.url === '/api/execute-code') {
+            const code = normalizeText(body?.code, 10_000);
+            const language = normalizeText(body?.language ?? 'python3', 50);
+            if (!code) throw new Error('INVALID_CODE');
+            if (!['python3', 'python', 'node', 'javascript', 'bash', 'sh'].includes(language.toLowerCase())) {
+                throw new Error('UNSUPPORTED_LANGUAGE');
+            }
+            const result = await runCodeExecution(code, language);
+            sendJson(response, 200, { ...result, provider: 'local-exec' }, corsHeaders);
             return;
         }
 

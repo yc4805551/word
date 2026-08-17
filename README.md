@@ -28,6 +28,18 @@ npm run api:kwiki
 
 详见 [Tailscale 私有 WPS 知识库服务](docs/kwiki-tailscale.md)。
 
+### Gemini 文件助手与自动降级
+
+`/api/gemini-chat` 由 Gemini CLI 处理文件助手请求；当 Gemini CLI 失败、超时、额度或认证错误时，自动降级到 DMXAPI 兜底（`provider: dmxapi-fallback`）。Gemini CLI 可通过 `GOOGLE_GEMINI_BASE_URL` 指向 cc-switch 作为上游代理；无直连 Gemini 密钥时，用 cc-switch 凭据启动 CLI。
+
+推荐用内置脚本启动（自动读取 `~/.gemini/.env`，不写入任何密钥）：
+
+```bash
+./start-api.sh
+```
+
+可调参数：`KWIKI_API_PORT`(8787)、`GEMINI_TIMEOUT_MS`(15000)、`CCSWITCH_TIMEOUT_MS`(12000)、`DMXAPI_TIMEOUT_MS`(15000)。完整机制、配置与排错见 [Gemini CLI 自动降级机制](GEMINI_FALLBACK_MECHANISM.md)。
+
 ## 构建
 
 ```bash

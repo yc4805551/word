@@ -28,12 +28,20 @@ const knowledgeBases = (process.env.KWIKI_DEFAULT_KUIDS ?? '0s_3125676226')
 
 const geminiWorkingDir = '/Users/youngyang/macagent/Gemini CLI';
 const geminiModel = process.env.GEMINI_CLI_MODEL || 'gemini-2.0-flash';
+const geminiTimeoutMs = Number.parseInt(process.env.GEMINI_TIMEOUT_MS ?? '15000', 10);
+const geminiApiKey = process.env.GEMINI_API_KEY?.trim() || '';
+const geminiProxyBaseUrl = process.env.GOOGLE_GEMINI_BASE_URL?.trim() || '';
+const ccSwitchBaseUrl = process.env.CCSWITCH_BASE_URL?.trim() || 'http://127.0.0.1:15721';
+const ccSwitchApiKey = process.env.CCSWITCH_API_KEY?.trim() || '';
+const ccSwitchModel = process.env.CCSWITCH_MODEL?.trim() || '';
+const ccSwitchTimeoutMs = Number.parseInt(process.env.CCSWITCH_TIMEOUT_MS ?? '12000', 10);
+const dmxapiTimeoutMs = Number.parseInt(process.env.DMXAPI_TIMEOUT_MS ?? '15000', 10);
 const maxConcurrentGemini = 2;
 let geminiActiveCount = 0;
 
 // DMXAPI 配置（支持多个 LLM 提供商的统一代理）
 const dmxapiBaseUrl = process.env.DMXAPI_BASE_URL || 'https://www.dmxapi.cn';
-const dmxapiApiKey = process.env.DMXAPI_API_KEY || 'sk-ZuTW638xmzHWu3dIcqp8pC7CVXHinLwWmMAwbUkOGyPHMJcZ';
+const dmxapiApiKey = process.env.DMXAPI_API_KEY?.trim() || '';
 const dmxapiModel = process.env.DMXAPI_MODEL || 'gpt-4o-mini';
 const maxConcurrentDmxapi = 5;
 let dmxapiActiveCount = 0;
@@ -231,6 +239,9 @@ function runKwiki(prompt) {
 }
 
 async function runDmxapi(prompt, conversationHistory = []) {
+    if (!dmxapiApiKey) {
+        throw new Error('LLM_UNAVAILABLE');
+    }
     if (dmxapiActiveCount >= maxConcurrentDmxapi) {
         throw new Error('BUSY');
     }
@@ -270,7 +281,7 @@ async function runDmxapi(prompt, conversationHistory = []) {
         const timer = setTimeout(() => {
             timedOut = true;
             req.destroy();
-        }, timeoutMs);
+        }, dmxapiTimeoutMs);
 
         const req = client.request(url, options, (res) => {
             const chunks = [];
@@ -322,52 +333,77 @@ async function runGemini(prompt) {
     if (geminiActiveCount >= maxConcurrentGemini) {
         throw new Error('BUSY');
     }
+
+    const usingDirectApi = Boolean(geminiApiKey);
+    const cliApiKey = geminiApiKey || ccSwitchApiKey;
+    const cliBaseUrl = usingDirectApi ? geminiProxyBaseUrl : (geminiProxyBaseUrl || ccSwitchBaseUrl);
+    if (!cliApiKey) {
+        throw new Error('GEMINI_UNAVAILABLE');
+    }
+
     geminiActiveCount++;
     return new Promise((resolve, reject) => {
-        const args = ['-p', prompt, '--model', geminiModel, '--skip-trust'];
+        const args = ['-p', prompt, '--model', usingDirectApi ? geminiModel : (ccSwitchModel || geminiModel), '--skip-trust'];
+        const childEnv = { ...process.env, GEMINI_API_KEY: cliApiKey };
+        if (cliBaseUrl) {
+            childEnv.GOOGLE_GEMINI_BASE_URL = cliBaseUrl;
+        } else {
+            delete childEnv.GOOGLE_GEMINI_BASE_URL;
+        }
         const child = spawn('gemini', args, {
             shell: false,
             stdio: ['ignore', 'pipe', 'pipe'],
             cwd: geminiWorkingDir,
-            env: Object.fromEntries(
-                Object.entries(process.env).filter(([k]) => !['GEMINI_API_KEY', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'].includes(k))
-            ),
+            env: childEnv,
         });
         const stdout = [];
         const stderr = [];
+        let settled = false;
         let timedOut = false;
+        const finish = (callback) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            geminiActiveCount--;
+            callback();
+        };
         const timer = setTimeout(() => {
             timedOut = true;
             child.kill('SIGTERM');
-        }, timeoutMs);
+            // CLI 在配额/网络错误时会带退避重试，可能忽略 SIGTERM。
+            // 不等 close 事件，立即结算以便上层降级；再补 SIGKILL 回收进程。
+            setTimeout(() => child.kill('SIGKILL'), 2_000).unref();
+            finish(() => reject(new Error('UPSTREAM_TIMEOUT')));
+        }, geminiTimeoutMs);
 
         child.stdout.on('data', (chunk) => stdout.push(chunk));
         child.stderr.on('data', (chunk) => stderr.push(chunk));
         child.on('error', (err) => {
-            clearTimeout(timer);
-            geminiActiveCount--;
-            console.error('[Gemini] spawn error', err.message);
-            reject(new Error('GEMINI_UNAVAILABLE'));
+            finish(() => {
+                console.error('[Gemini] spawn error', err.message);
+                reject(new Error('GEMINI_UNAVAILABLE'));
+            });
         });
         child.on('close', (code) => {
-            clearTimeout(timer);
-            geminiActiveCount--;
             const stderrText = Buffer.concat(stderr).toString('utf8').trim();
             if (stderrText) console.error('[Gemini]', stderrText.slice(0, 300));
 
-            if (code !== 0) {
-                const reason = timedOut ? 'UPSTREAM_TIMEOUT' : 'GEMINI_UNAVAILABLE';
-                if (stderrText.includes('quota') || stderrText.includes('429')) {
-                    reject(new Error('GEMINI_QUOTA_EXCEEDED'));
-                } else if (stderrText.includes('auth') || stderrText.includes('login') || stderrText.includes('credential')) {
-                    reject(new Error('GEMINI_AUTH_FAILED'));
-                } else {
-                    reject(new Error(reason));
+            finish(() => {
+                if (code !== 0) {
+                    if (timedOut) {
+                        reject(new Error('UPSTREAM_TIMEOUT'));
+                    } else if (stderrText.includes('quota') || stderrText.includes('429') || stderrText.includes('balance')) {
+                        reject(new Error('GEMINI_QUOTA_EXCEEDED'));
+                    } else if (stderrText.includes('auth') || stderrText.includes('login') || stderrText.includes('credential') || stderrText.includes('API key')) {
+                        reject(new Error('GEMINI_AUTH_FAILED'));
+                    } else {
+                        reject(new Error('GEMINI_UNAVAILABLE'));
+                    }
+                    return;
                 }
-                return;
-            }
-            const answer = Buffer.concat(stdout).toString('utf8').trim();
-            resolve(answer || '（Gemini 未返回内容）');
+                const answer = Buffer.concat(stdout).toString('utf8').trim();
+                resolve(answer || '（Gemini 未返回内容）');
+            });
         });
     });
 }
@@ -578,9 +614,25 @@ const server = createServer(async (request, response) => {
         }
 
         if (request.url === '/api/gemini-chat') {
-            const answer = await runGemini(createGeminiChatPrompt(question, documentContext, history));
-            sendJson(response, 200, { answer, provider: 'gemini-cli' }, corsHeaders);
-            return;
+            const prompt = createGeminiChatPrompt(question, documentContext, history);
+            const attempts = [
+                { provider: 'gemini-cli', run: () => runGemini(prompt) },
+                { provider: 'dmxapi-fallback', run: () => runDmxapi(createDmxapiChatPrompt(question, documentContext), history) },
+            ];
+            let lastError;
+            for (const attempt of attempts) {
+                try {
+                    console.log(`[LLM] Attempting ${attempt.provider}`);
+                    const answer = await attempt.run();
+                    console.log(`[LLM] Success ${attempt.provider}`);
+                    sendJson(response, 200, { answer, provider: attempt.provider }, corsHeaders);
+                    return;
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`[LLM] ${attempt.provider} failed:`, error.message);
+                }
+            }
+            throw lastError ?? new Error('LLM_UNAVAILABLE');
         }
 
         const payload = await runKwiki(createDocumentChatPrompt(question, documentContext, history));

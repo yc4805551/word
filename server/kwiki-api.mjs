@@ -45,6 +45,8 @@ const dmxapiApiKey = process.env.DMXAPI_API_KEY?.trim() || '';
 const dmxapiModel = process.env.DMXAPI_MODEL || 'gpt-4o-mini';
 const maxConcurrentDmxapi = 5;
 let dmxapiActiveCount = 0;
+const maxConcurrentExecutions = 3;
+let codeExecutionActiveCount = 0;
 
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error('KWIKI_API_PORT must be a valid TCP port.');
@@ -395,7 +397,8 @@ async function runGemini(prompt) {
                     } else if (stderrText.includes('quota') || stderrText.includes('429') || stderrText.includes('balance')) {
                         reject(new Error('GEMINI_QUOTA_EXCEEDED'));
                     } else if (stderrText.includes('auth') || stderrText.includes('login') || stderrText.includes('credential') || stderrText.includes('API key')) {
-                        reject(new Error('GEMINI_AUTH_FAILED'));
+                        // 与已部署前端 geminiCliChat.ts 的错误码保持一致（前端匹配 GEMINI_AUTH_REQUIRED）。
+                        reject(new Error('GEMINI_AUTH_REQUIRED'));
                     } else {
                         reject(new Error('GEMINI_UNAVAILABLE'));
                     }
@@ -409,9 +412,6 @@ async function runGemini(prompt) {
 }
 
 async function runCodeExecution(code, language = 'python3') {
-    const maxConcurrentExecutions = 3;
-    let codeExecutionActiveCount = 0;
-
     if (codeExecutionActiveCount >= maxConcurrentExecutions) {
         throw new Error('BUSY');
     }
@@ -429,7 +429,8 @@ async function runCodeExecution(code, language = 'python3') {
                 break;
             case 'node':
             case 'javascript':
-                interpreter = '/usr/bin/node';
+                // 复用运行本服务的 Node 可执行文件路径，避免写死 /usr/bin/node（macOS 上不存在）。
+                interpreter = process.execPath;
                 args = [];
                 break;
             case 'bash':
@@ -550,7 +551,7 @@ function getErrorStatus(code) {
     if (['INVALID_JSON', 'INVALID_CONTEXT', 'INVALID_QUESTION', 'INVALID_DOCUMENT_CONTEXT', 'INVALID_HISTORY', 'INVALID_CODE', 'UNSUPPORTED_LANGUAGE'].includes(code)) return 400;
     if (code === 'BUSY') return 429;
     if (code === 'GEMINI_QUOTA_EXCEEDED') return 429;
-    if (code === 'GEMINI_AUTH_FAILED') return 401;
+    if (code === 'GEMINI_AUTH_REQUIRED') return 401;
     if (code === 'UPSTREAM_TIMEOUT' || code === 'CODE_TIMEOUT') return 504;
     if (code === 'LLM_UNAVAILABLE') return 502;
     if (code === 'CODE_EXEC_ERROR') return 500;

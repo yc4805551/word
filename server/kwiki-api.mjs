@@ -4,7 +4,7 @@ import https from 'node:https';
 import http from 'node:http';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
-const host = '127.0.0.1';
+const host = '0.0.0.0';
 const port = Number.parseInt(process.env.KWIKI_API_PORT ?? '8787', 10);
 const maxBodyBytes = 49_152;
 const maxAssociationContextLength = 800;
@@ -67,7 +67,8 @@ if (knowledgeBases.length === 0) {
 
 function getCorsHeaders(request) {
     const origin = request.headers.origin;
-    if (!origin || !allowedOrigins.has(origin)) return {};
+    if (!origin) return {};
+    // 允许所有来源：Tailscale 网络、GitHub Pages、本地开发等
     return {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'POST, OPTIONS',

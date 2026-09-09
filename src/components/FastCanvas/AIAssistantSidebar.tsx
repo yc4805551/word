@@ -338,7 +338,7 @@ export default function AIAssistantSidebar() {
                     model: models[aiProvider],
                 });
                 if (result.success) {
-                    updateHistory(prev => [...prev, { role: 'assistant', content: result.data }]);
+                    updateHistory(prev => [...prev, { role: 'assistant', content: result.data || 'AI 响应为空，请重试。' }]);
                 } else {
                     updateHistory(prev => [...prev, { role: 'assistant', content: result.error || 'AI 响应失败，请稍后重试。' }]);
                 }

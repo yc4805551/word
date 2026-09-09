@@ -2,9 +2,8 @@ import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb, Download, Trash2 } from 'lucide-react';
 
-import { polishText, generateAssociativeSuggestions, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
+import { polishText, generateAssociativeSuggestions, interactivePolish, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
 import { chatWithKwikiDocument, KwikiDocumentChatError } from '../../lib/kwikiDocumentChat';
-import { chatWithGeminiCli, GeminiCliError } from '../../lib/geminiCliChat';
 
 import { useSettings } from '../../context/SettingsContext';
 import ReactMarkdown from 'react-markdown';
@@ -136,7 +135,7 @@ export default function AIAssistantSidebar() {
         { role: 'assistant', content: '您好！我是您的公文助手。我可以帮您润色文章、审查格式或回答相关问题。' }
     ]);
     const [geminiChatHistory, setGeminiChatHistory] = useState<ChatMessage[]>([
-        { role: 'assistant', content: '您好！我是 Gemini 通用写作助手，可帮您改写、润色、续写或回答写作相关问题。' }
+        { role: 'assistant', content: '您好！我是通用写作助手，可帮您改写、润色、续写或回答写作相关问题。' }
     ]);
 
     const handleApplySuggestion = (id: string) => {
@@ -328,8 +327,21 @@ export default function AIAssistantSidebar() {
 
         try {
             if (chatBackend === 'gemini') {
-                const result = await chatWithGeminiCli(msgText, editor.getText(), [...activeHistory, userMsg]);
-                updateHistory(prev => [...prev, { role: 'assistant', content: result.answer }]);
+                const systemMsg: ChatMessage = {
+                    role: 'system',
+                    content: '你是一个专业的公文写作助手。请根据用户的要求提供改写、润色、续写或回答写作相关问题。回答应简洁、专业、符合公文写作规范。'
+                };
+                const fullHistory = [systemMsg, ...activeHistory, userMsg];
+                const result = await interactivePolish(fullHistory, aiProvider, {
+                    apiKey: apiKeys[aiProvider],
+                    endpoint: endpoints[aiProvider],
+                    model: models[aiProvider],
+                });
+                if (result.success) {
+                    updateHistory(prev => [...prev, { role: 'assistant', content: result.data }]);
+                } else {
+                    updateHistory(prev => [...prev, { role: 'assistant', content: result.error || 'AI 响应失败，请稍后重试。' }]);
+                }
             } else {
                 const result = await chatWithKwikiDocument(msgText, editor.getText(), [...activeHistory, userMsg]);
                 if (result.matched && result.answer) {
@@ -341,18 +353,8 @@ export default function AIAssistantSidebar() {
         } catch (error) {
             let message: string;
             if (chatBackend === 'gemini') {
-                const code = error instanceof GeminiCliError ? error.code : 'NETWORK';
-                message = code === 'UNCONFIGURED'
-                    ? 'Gemini CLI 服务未配置。'
-                    : code === 'GEMINI_AUTH_REQUIRED'
-                        ? 'Gemini CLI 尚未登录，请在 Mac 上完成 Google 授权。'
-                        : code === 'BUSY'
-                            ? 'Gemini CLI 正在处理其他请求，请稍后重试。'
-                            : code === 'UPSTREAM_TIMEOUT'
-                                ? 'Gemini CLI 响应超时，请稍后重试。'
-                                : code === 'NETWORK'
-                                    ? '无法连接 Mac 上的 Gemini CLI 服务。'
-                                    : 'Gemini CLI 暂不可用，请确认 Mac 已登录 Gemini。';
+                const errMsg = error instanceof Error ? error.message : String(error);
+                message = `通用助手请求失败：${errMsg || '请检查系统设置中的模型配置后重试。'}`;
             } else {
                 const code = error instanceof KwikiDocumentChatError ? error.code : 'NETWORK';
                 message = code === 'UNCONFIGURED'
@@ -403,7 +405,7 @@ export default function AIAssistantSidebar() {
     // 清除对话记录，恢复初始欢迎语
     const handleClearChat = () => {
         if (chatBackend === 'gemini') {
-            setGeminiChatHistory([{ role: 'assistant', content: '您好！我是 Gemini 通用写作助手，可帮您改写、润色、续写或回答写作相关问题。' }]);
+            setGeminiChatHistory([{ role: 'assistant', content: '您好！我是通用写作助手，可帮您改写、润色、续写或回答写作相关问题。' }]);
         } else {
             setChatHistory([{ role: 'assistant', content: '您好！我是您的公文助手。我可以帮您润色文章、审查格式或回答相关问题。' }]);
         }
@@ -648,12 +650,12 @@ export default function AIAssistantSidebar() {
                                 disabled={isChatLoading}
                                 className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${chatBackend === 'gemini' ? 'bg-white text-purple-700 shadow-sm border border-purple-100' : 'text-slate-500 hover:bg-white'}`}
                             >
-                                Gemini 通用助手
+                                通用助手
                             </button>
                         </div>
                         {/* 对话工具栏：导出 / 清除（与左侧 Word导入/导出 区分，位于AI侧边栏内部） */}
                         <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-100 bg-slate-50 shrink-0">
-                            <span className="text-xs text-slate-400">{chatBackend === 'gemini' ? 'Gemini CLI · Mac' : 'WPS 写作问答'} · {(chatBackend === 'gemini' ? geminiChatHistory : chatHistory).length - 1} 条对话</span>
+                            <span className="text-xs text-slate-400">{chatBackend === 'gemini' ? `${aiProvider.toUpperCase()}${models[aiProvider] ? ' · ' + models[aiProvider] : ''}` : 'WPS 写作问答'} · {(chatBackend === 'gemini' ? geminiChatHistory : chatHistory).length - 1} 条对话</span>
                             <div className="flex items-center gap-1">
                                 <button
                                     onClick={handleExportChat}

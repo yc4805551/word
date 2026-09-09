@@ -16,7 +16,7 @@ const maxSentences = 6;
 const maxDirections = 3;
 const timeoutMs = 60_000;
 const allowedOrigins = new Set(
-    (process.env.KWIKI_CORS_ORIGINS ?? 'https://yc4805551.github.io,http://localhost:5173')
+    (process.env.KWIKI_CORS_ORIGINS ?? 'https://yc4805551.github.io,http://localhost:5173,https://mac-agent.tail36f59d.ts.net,http://mac-agent.tail36f59d.ts.net:5173')
         .split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
@@ -27,7 +27,7 @@ const knowledgeBases = (process.env.KWIKI_DEFAULT_KUIDS ?? '0s_3125676226')
     .filter((kuid) => /^0s[\w-]+$/.test(kuid));
 
 const geminiWorkingDir = '/Users/youngyang/macagent/Gemini CLI';
-const geminiModel = process.env.GEMINI_CLI_MODEL || 'gemini-2.0-flash';
+const geminiModel = process.env.GEMINI_CLI_MODEL || 'gemini-3.1-flash-lite';
 const geminiTimeoutMs = Number.parseInt(process.env.GEMINI_TIMEOUT_MS ?? '15000', 10);
 const geminiApiKey = process.env.GEMINI_API_KEY?.trim() || '';
 const geminiProxyBaseUrl = process.env.GOOGLE_GEMINI_BASE_URL?.trim() || '';

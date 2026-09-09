@@ -8,13 +8,14 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-    const { aiProvider, setAiProvider, apiKeys, setApiKey, endpoints, setEndpoint, models, setModel, githubToken, setGithubToken, githubOwner, setGithubOwner, githubRepo, setGithubRepo } = useSettings();
+    const { aiProvider, setAiProvider, apiKeys, setApiKey, endpoints, setEndpoint, models, setModel, githubToken, setGithubToken, githubOwner, setGithubOwner, githubRepo, setGithubRepo, kwikiApiBaseUrl, setKwikiApiBaseUrl } = useSettings();
     const [localKeys, setLocalKeys] = useState<Record<AIProvider, string>>(apiKeys);
     const [localEndpoints, setLocalEndpoints] = useState<Record<AIProvider, string>>(endpoints);
     const [localModels, setLocalModels] = useState<Record<AIProvider, string>>(models);
     const [localGitToken, setLocalGitToken] = useState(githubToken);
     const [localGitOwner, setLocalGitOwner] = useState(githubOwner);
     const [localGitRepo, setLocalGitRepo] = useState(githubRepo);
+    const [localKwikiUrl, setLocalKwikiUrl] = useState(kwikiApiBaseUrl);
 
     if (!isOpen) return null;
 
@@ -46,6 +47,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setGithubToken(localGitToken);
         setGithubOwner(localGitOwner);
         setGithubRepo(localGitRepo);
+        setKwikiApiBaseUrl(localKwikiUrl.trim());
 
         onClose();
     };
@@ -317,6 +319,23 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* WPS Knowledge Base Service URL */}
+                        <div className="space-y-3 p-3 bg-slate-50/50 rounded-lg border border-slate-200">
+                            <label className="block text-sm font-bold text-slate-800">
+                                WPS 知识库服务地址
+                            </label>
+                            <div className="text-xs text-slate-500">
+                                部署到 GitHub Pages 等远程环境时，填写运行 kwiki-api 服务的地址（如 <code className="text-blue-600">http://127.0.0.1:8787</code> 或 Tailscale 地址）
+                            </div>
+                            <input
+                                type="text"
+                                value={localKwikiUrl}
+                                onChange={(e) => setLocalKwikiUrl(e.target.value)}
+                                placeholder="http://127.0.0.1:8787"
+                                className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-slate-100 outline-none"
+                            />
                         </div>
                     </div>
                 </div>

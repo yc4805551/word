@@ -20,6 +20,8 @@ interface SettingsContextType {
     setGithubOwner: (owner: string) => void;
     githubRepo: string;
     setGithubRepo: (repo: string) => void;
+    kwikiApiBaseUrl: string;
+    setKwikiApiBaseUrl: (url: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -69,6 +71,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const [githubOwner, setGithubOwnerState] = useState<string>(localStorage.getItem('github_owner') || 'yc4805551');
     const [githubRepo, setGithubRepoState] = useState<string>(localStorage.getItem('github_repo') || 'word');
 
+    const [kwikiApiBaseUrl, setKwikiApiBaseUrlState] = useState<string>(
+        localStorage.getItem('kwiki_api_base_url') || import.meta.env.VITE_KWIKI_API_BASE_URL || ''
+    );
+
     const setGithubToken = (token: string) => {
         setGithubTokenState(token);
         localStorage.setItem('github_token', token);
@@ -82,6 +88,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const setGithubRepo = (repo: string) => {
         setGithubRepoState(repo);
         localStorage.setItem('github_repo', repo);
+    };
+
+    const setKwikiApiBaseUrl = (url: string) => {
+        setKwikiApiBaseUrlState(url);
+        localStorage.setItem('kwiki_api_base_url', url);
     };
 
     useEffect(() => {
@@ -128,7 +139,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             githubOwner,
             setGithubOwner,
             githubRepo,
-            setGithubRepo
+            setGithubRepo,
+            kwikiApiBaseUrl,
+            setKwikiApiBaseUrl
         }}>
             {children}
         </SettingsContext.Provider>

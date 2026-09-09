@@ -54,7 +54,7 @@ function normalizeSuggestion(payload: unknown): AssociativeSuggestion | null {
 }
 
 export async function fetchKwikiAssociations(context: string): Promise<AssociativeSuggestion> {
-    const baseUrl = import.meta.env.VITE_KWIKI_API_BASE_URL?.trim();
+    const baseUrl = (localStorage.getItem('kwiki_api_base_url') || import.meta.env.VITE_KWIKI_API_BASE_URL || '').trim();
     if (!baseUrl) throw new KwikiAssociationError('NETWORK');
 
     const controller = new AbortController();
@@ -86,5 +86,5 @@ export async function fetchKwikiAssociations(context: string): Promise<Associati
 }
 
 export function isKwikiApiConfigured(): boolean {
-    return Boolean(import.meta.env.VITE_KWIKI_API_BASE_URL?.trim());
+    return Boolean((localStorage.getItem('kwiki_api_base_url') || import.meta.env.VITE_KWIKI_API_BASE_URL || '').trim());
 }

@@ -60,7 +60,7 @@ function normalizeSources(value: unknown): KnowledgeSource[] {
 }
 
 export async function chatWithKwikiDocument(question: string, documentContext: string, history: ChatMessage[]) {
-    const baseUrl = import.meta.env.VITE_KWIKI_API_BASE_URL?.trim();
+    const baseUrl = (localStorage.getItem('kwiki_api_base_url') || import.meta.env.VITE_KWIKI_API_BASE_URL || '').trim();
     if (!baseUrl) throw new KwikiDocumentChatError('UNCONFIGURED');
 
     const controller = new AbortController();

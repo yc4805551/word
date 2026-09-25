@@ -240,13 +240,24 @@ export default function AIAssistantSidebar() {
         setIsAnalyzing(true);
         setHasAnalyzed(true);
         setAnalysisError(null);
+        setSuggestions([]);
         setAnalysisProgress({ done: 0, total: 1 });
         try {
             const result = await polishTextInParallel(text, aiProvider, { 
                 apiKey: apiKeys[aiProvider],
                 endpoint: endpoints[aiProvider],
                 model: models[aiProvider] 
-            }, (done, total) => setAnalysisProgress({ done, total }));
+            }, (done, total) => setAnalysisProgress({ done, total }),
+            (partialChanges) => {
+                // 逐块渐进展示：每完成一块就把已累积的建议渲染出来
+                const partial = partialChanges.map((c: any, i: number) => ({
+                    id: Date.now().toString() + i,
+                    original: c.original_word || '',
+                    replacement: c.polished_word || '',
+                    rationale: c.rationale || 'AI 建议修改'
+                })).filter((s: Suggestion) => s.original && s.replacement);
+                setSuggestions(partial);
+            });
             if (result && result.changes && result.changes.length > 0) {
                 const newSuggestions = result.changes.map((c: any, i: number) => ({
                     id: Date.now().toString() + i,

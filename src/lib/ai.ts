@@ -185,6 +185,125 @@ function safeJsonParse<T = unknown>(text: string): T | null {
     }
 }
 
+// ==================== 段落级缓存（增量审查） ====================
+const POLISH_CACHE_PREFIX = 'polish_cache_v1:';
+const POLISH_CACHE_MAX = 200; // 最多缓存 200 条，避免 localStorage 爆满
+
+/** 简单字符串哈希（djb2），用于生成缓存 key */
+function hashString(str: string): string {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) + hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return (hash >>> 0).toString(36);
+}
+
+function getPolishCacheKey(text: string, provider: string, model: string): string {
+    return `${POLISH_CACHE_PREFIX}${provider}:${model}:${hashString(text)}`;
+}
+
+function getPolishCache(text: string, provider: string, model: string): PolishedText | null {
+    try {
+        const key = getPolishCacheKey(text, provider, model);
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        return JSON.parse(raw) as PolishedText;
+    } catch {
+        return null;
+    }
+}
+
+function setPolishCache(text: string, provider: string, model: string, result: PolishedText) {
+    try {
+        const key = getPolishCacheKey(text, provider, model);
+        localStorage.setItem(key, JSON.stringify(result));
+        // 简单淘汰：超过上限时清理最旧的（按 key 前缀扫描）
+        const keys = Object.keys(localStorage).filter(k => k.startsWith(POLISH_CACHE_PREFIX));
+        if (keys.length > POLISH_CACHE_MAX) {
+            keys.slice(0, keys.length - POLISH_CACHE_MAX).forEach(k => localStorage.removeItem(k));
+        }
+    } catch {
+        // localStorage 满或不可用，静默忽略
+    }
+}
+
+// ==================== 流式调用（SSE） ====================
+/**
+ * 流式调用 OpenAI 兼容接口，逐 token 回调，返回完整文本。
+ * 仅支持非 Gemini 提供方。
+ */
+async function callChatCompletionStream(
+    messages: ChatMessage[],
+    config: AIConfig,
+    onDelta: (accText: string) => void,
+    schema?: unknown,
+    temperature: number = 0.7,
+    maxTokens?: number
+): Promise<string | null> {
+    const payload: Record<string, unknown> = {
+        model: config.model,
+        messages: messages,
+        temperature: temperature,
+        stream: true,
+    };
+    if (schema) payload.response_format = schema;
+    if (maxTokens) payload.max_tokens = maxTokens;
+
+    const response = await fetchWithTimeout(config.endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify(payload),
+    }, 90_000);
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw buildHttpError(response.status, response.statusText, errText);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) return null;
+
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let fullText = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE 按空行分割事件
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+            const lines = event.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data:')) continue;
+                const dataStr = trimmed.slice(5).trim();
+                if (dataStr === '[DONE]') continue;
+                try {
+                    const data = JSON.parse(dataStr);
+                    const delta = data.choices?.[0]?.delta?.content;
+                    if (typeof delta === 'string' && delta) {
+                        fullText += delta;
+                        onDelta(fullText);
+                    }
+                } catch {
+                    // 忽略单条解析失败
+                }
+            }
+        }
+    }
+
+    return stripThinking(fullText || null);
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
@@ -510,24 +629,47 @@ export async function generateContextualPractice(colloquial: string, official: s
 
 
 
-export async function polishText(text: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<PolishedText | null> {
+export async function polishText(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
+    overrides?: { apiKey?: string; endpoint?: string; model?: string },
+    onDelta?: (accText: string) => void,
+): Promise<PolishedText | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
 
+    // 增量审查：命中缓存直接返回，跳过 API 调用
+    const cached = getPolishCache(text, provider, config.model);
+    if (cached) {
+        onDelta?.(JSON.stringify(cached));
+        return cached;
+    }
+
     const messages = PROMPTS.polish(text);
+    const isGoogleHost = config.endpoint.includes('generativelanguage.googleapis.com');
 
     try {
-        const content = await callChatCompletion(messages, config, { type: "json_object" });
-        return content ? safeJsonParse<PolishedText>(content) : null;
+        let content: string | null;
+        if (isGoogleHost) {
+            // Gemini 原生 API 不走 SSE 流式
+            content = await callChatCompletion(messages, config, { type: "json_object" });
+        } else {
+            content = await callChatCompletionStream(messages, config, (acc) => onDelta?.(acc), { type: "json_object" });
+        }
+        const result = content ? safeJsonParse<PolishedText>(content) : null;
+        if (result) setPolishCache(text, provider, config.model, result);
+        return result;
     } catch { return null; }
 }
 
 /**
  * 将长文档按段落分块，并发调用模型审查，大幅缩短全文审查耗时。
+ * 支持：段落级缓存（未变化段落跳过）、逐块流式结果回调。
  * @param text 全文
  * @param provider 模型提供方
  * @param overrides API 配置
  * @param onProgress 进度回调 (已完成数, 总数)
+ * @param onPartialResult 逐块结果回调 (当前已合并的 changes)，用于 UI 渐进展示
  * @returns 合并后的审查结果
  */
 export async function polishTextInParallel(
@@ -535,6 +677,7 @@ export async function polishTextInParallel(
     provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
     overrides?: { apiKey?: string; endpoint?: string; model?: string },
     onProgress?: (done: number, total: number) => void,
+    onPartialResult?: (changes: NonNullable<PolishedText['changes']>) => void,
 ): Promise<PolishedText | null> {
     const config = getAIConfig(provider, overrides);
     if (!normalizeApiKey(config.apiKey)) return null;
@@ -561,6 +704,7 @@ export async function polishTextInParallel(
         onProgress?.(0, 1);
         const result = await polishText(text, provider, overrides);
         onProgress?.(1, 1);
+        if (result?.changes) onPartialResult?.(result.changes);
         return result;
     }
 
@@ -579,6 +723,8 @@ export async function polishTextInParallel(
                 const result = await polishText(chunks[i], provider, overrides);
                 if (result?.changes?.length) {
                     allChanges.push(...result.changes);
+                    // 每完成一块就把当前累积的结果推给 UI
+                    onPartialResult?.([...allChanges]);
                 }
                 if (result?.overall_comment) {
                     comments.push(result.overall_comment);

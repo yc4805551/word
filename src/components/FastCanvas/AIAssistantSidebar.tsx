@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb, Download, Trash2 } from 'lucide-react';
 
-import { polishText, generateAssociativeSuggestions, interactivePolish, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
+import { polishTextInParallel, generateAssociativeSuggestions, interactivePolish, type ChatMessage, type AssociativeSuggestion } from '../../lib/ai';
 import { chatWithKwikiDocument, KwikiDocumentChatError } from '../../lib/kwikiDocumentChat';
 
 import { useSettings } from '../../context/SettingsContext';
@@ -124,6 +124,7 @@ export default function AIAssistantSidebar() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
+    const [analysisProgress, setAnalysisProgress] = useState<{ done: number; total: number } | null>(null);
     const [associativeData, setAssociativeData] = useState<AssociativeSuggestion | null>(null);
     const [isAssociating, setIsAssociating] = useState(false);
     const [associativeError, setAssociativeError] = useState<string | null>(null);
@@ -239,12 +240,13 @@ export default function AIAssistantSidebar() {
         setIsAnalyzing(true);
         setHasAnalyzed(true);
         setAnalysisError(null);
+        setAnalysisProgress({ done: 0, total: 1 });
         try {
-            const result = await polishText(text, aiProvider, { 
+            const result = await polishTextInParallel(text, aiProvider, { 
                 apiKey: apiKeys[aiProvider],
                 endpoint: endpoints[aiProvider],
                 model: models[aiProvider] 
-            });
+            }, (done, total) => setAnalysisProgress({ done, total }));
             if (result && result.changes && result.changes.length > 0) {
                 const newSuggestions = result.changes.map((c: any, i: number) => ({
                     id: Date.now().toString() + i,
@@ -264,6 +266,7 @@ export default function AIAssistantSidebar() {
             setAnalysisError('分析过程中发生错误，请稍后重试。');
         } finally {
             setIsAnalyzing(false);
+            setAnalysisProgress(null);
         }
     }, [editor, aiProvider, apiKeys, endpoints, models]);
 
@@ -451,9 +454,25 @@ export default function AIAssistantSidebar() {
                             </button>
                         </div>
                         {isAnalyzing && (
-                            <div className="flex items-center gap-2 text-blue-600 text-sm p-3 bg-blue-50 rounded-lg">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                正在分析全文...
+                            <div className="text-blue-600 text-sm p-3 bg-blue-50 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    正在分析全文...
+                                </div>
+                                {analysisProgress && analysisProgress.total > 1 && (
+                                    <div className="mt-2">
+                                        <div className="flex justify-between text-xs text-blue-500 mb-1">
+                                            <span>分段审查中</span>
+                                            <span>{analysisProgress.done}/{analysisProgress.total}</span>
+                                        </div>
+                                        <div className="w-full h-1.5 bg-blue-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                                style={{ width: `${(analysisProgress.done / analysisProgress.total) * 100}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {analysisError && (

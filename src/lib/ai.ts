@@ -522,6 +522,87 @@ export async function polishText(text: string, provider: 'openai' | 'deepseek' |
     } catch { return null; }
 }
 
+/**
+ * 将长文档按段落分块，并发调用模型审查，大幅缩短全文审查耗时。
+ * @param text 全文
+ * @param provider 模型提供方
+ * @param overrides API 配置
+ * @param onProgress 进度回调 (已完成数, 总数)
+ * @returns 合并后的审查结果
+ */
+export async function polishTextInParallel(
+    text: string,
+    provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai',
+    overrides?: { apiKey?: string; endpoint?: string; model?: string },
+    onProgress?: (done: number, total: number) => void,
+): Promise<PolishedText | null> {
+    const config = getAIConfig(provider, overrides);
+    if (!normalizeApiKey(config.apiKey)) return null;
+
+    const MAX_CHUNK_CHARS = 1500;
+    const CONCURRENCY = 5;
+
+    // 按段落（双换行）切分，再合并到接近 MAX_CHUNK_CHARS 的块
+    const paragraphs = text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+    const chunks: string[] = [];
+    let current = '';
+    for (const para of paragraphs) {
+        if ((current + '\n\n' + para).length > MAX_CHUNK_CHARS && current) {
+            chunks.push(current);
+            current = para;
+        } else {
+            current = current ? `${current}\n\n${para}` : para;
+        }
+    }
+    if (current) chunks.push(current);
+
+    // 单块直接走原逻辑
+    if (chunks.length <= 1) {
+        onProgress?.(0, 1);
+        const result = await polishText(text, provider, overrides);
+        onProgress?.(1, 1);
+        return result;
+    }
+
+    const total = chunks.length;
+    let done = 0;
+
+    // 受控并发池
+    const allChanges: NonNullable<PolishedText['changes']> = [];
+    const comments: string[] = [];
+    let index = 0;
+
+    async function worker() {
+        while (index < chunks.length) {
+            const i = index++;
+            try {
+                const result = await polishText(chunks[i], provider, overrides);
+                if (result?.changes?.length) {
+                    allChanges.push(...result.changes);
+                }
+                if (result?.overall_comment) {
+                    comments.push(result.overall_comment);
+                }
+            } catch {
+                // 单块失败不影响整体
+            } finally {
+                done++;
+                onProgress?.(done, total);
+            }
+        }
+    }
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, total) }, worker);
+    await Promise.all(workers);
+
+    return {
+        original: text,
+        polished: text,
+        changes: allChanges,
+        overall_comment: comments.length > 0 ? comments.join('\n') : '',
+    };
+}
+
 
 
 export async function generateScenarioPractice(word: string, provider: 'openai' | 'deepseek' | 'gemini' | 'qwen' | 'bytedance' | 'depocr' | 'anythingllm' = 'openai', overrides?: { apiKey?: string; endpoint?: string; model?: string }): Promise<ScenarioPractice | null> {

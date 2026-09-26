@@ -233,7 +233,7 @@ export default function AIAssistantSidebar() {
     };
 
     const handleRunRealtimeAnalysis = useCallback(async () => {
-        if (!editor) return;
+        if (!editor || isAnalyzing) return;
         const text = editor.getText();
         if (!text.trim()) return;
 
@@ -279,7 +279,7 @@ export default function AIAssistantSidebar() {
             setIsAnalyzing(false);
             setAnalysisProgress(null);
         }
-    }, [editor, aiProvider, apiKeys, endpoints, models]);
+    }, [editor, aiProvider, apiKeys, endpoints, models, isAnalyzing]);
 
     const handleGetAssociations = useCallback(async () => {
         if (!editor) return;

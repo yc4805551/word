@@ -271,15 +271,9 @@ async function callChatCompletionStream(
     let buffer = '';
     let fullText = '';
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        // SSE 按空行分割事件
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-
+    // 解析 SSE 事件并累积 content
+    const parseSSE = (raw: string) => {
+        const events = raw.split('\n\n');
         for (const event of events) {
             const lines = event.split('\n');
             for (const line of lines) {
@@ -299,7 +293,22 @@ async function callChatCompletionStream(
                 }
             }
         }
+    };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE 按空行分割事件，最后一段可能不完整，留到下次
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+        parseSSE(events.join('\n\n'));
     }
+
+    // 流结束后处理缓冲区残余 + flush decoder
+    buffer += decoder.decode();
+    if (buffer) parseSSE(buffer);
 
     return stripThinking(fullText || null);
 }
@@ -647,14 +656,19 @@ export async function polishText(
 
     const messages = PROMPTS.polish(text);
     const isGoogleHost = config.endpoint.includes('generativelanguage.googleapis.com');
+    const temp = 0.3; // 审查场景用低温，保证结果稳定可复现
 
     try {
         let content: string | null;
         if (isGoogleHost) {
             // Gemini 原生 API 不走 SSE 流式
-            content = await callChatCompletion(messages, config, { type: "json_object" });
+            content = await callChatCompletion(messages, config, { type: "json_object" }, temp);
         } else {
-            content = await callChatCompletionStream(messages, config, (acc) => onDelta?.(acc), { type: "json_object" });
+            content = await callChatCompletionStream(messages, config, (acc) => onDelta?.(acc), { type: "json_object" }, temp);
+            // 流式失败或返回空时，回退非流式（兼容不支持 SSE 的端点）
+            if (!content) {
+                content = await callChatCompletion(messages, config, { type: "json_object" }, temp);
+            }
         }
         const result = content ? safeJsonParse<PolishedText>(content) : null;
         if (result) setPolishCache(text, provider, config.model, result);

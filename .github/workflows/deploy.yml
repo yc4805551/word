@@ -33,19 +33,18 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
+          # 安全约束：禁止向构建环境注入任何 *_API_KEY。
+          # Vite 会把 VITE_* 明文内联进前端 bundle，公开站点等同密钥泄露。
+          # 密钥只能存在于服务端（server/kwiki-api.mjs 读取 ~/.gemini/.env）
+          # 或用户浏览器 localStorage（系统设置中自行填写）。
           VITE_OPENAI_ENDPOINT: ${{ secrets.VITE_OPENAI_ENDPOINT }}
           VITE_OPENAI_MODEL: ${{ secrets.VITE_OPENAI_MODEL }}
-          VITE_DEEPSEEK_API_KEY: ${{ secrets.VITE_DEEPSEEK_API_KEY }}
           VITE_DEEPSEEK_ENDPOINT: ${{ secrets.VITE_DEEPSEEK_ENDPOINT }}
           VITE_DEEPSEEK_MODEL: ${{ secrets.VITE_DEEPSEEK_MODEL }}
-          VITE_ALI_API_KEY: ${{ secrets.VITE_ALI_API_KEY }}
           VITE_ALI_ENDPOINT: ${{ secrets.VITE_ALI_ENDPOINT }}
           VITE_ALI_MODEL: ${{ secrets.VITE_ALI_MODEL }}
-          VITE_DOUBAO_API_KEY: ${{ secrets.VITE_DOUBAO_API_KEY }}
           VITE_DOUBAO_ENDPOINT: ${{ secrets.VITE_DOUBAO_ENDPOINT }}
           VITE_DOUBAO_MODEL: ${{ secrets.VITE_DOUBAO_MODEL }}
-          VITE_DEPOCR_API_KEY: ${{ secrets.VITE_DEPOCR_API_KEY }}
           VITE_DEPOCR_ENDPOINT: ${{ secrets.VITE_DEPOCR_ENDPOINT }}
           VITE_DEPOCR_MODEL: ${{ secrets.VITE_DEPOCR_MODEL }}
           VITE_KWIKI_API_BASE_URL: https://mac-agent.tail36f59d.ts.net

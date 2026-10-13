@@ -49,40 +49,43 @@ export function getAIConfig(
     let endpoint = '';
     let model = '';
 
+    // 安全约束：apiKey 只能来自调用方传入的 overrides（即用户在“系统设置”里填的
+    // localStorage 值）。严禁回退到 import.meta.env.VITE_*_API_KEY——Vite 会把
+    // VITE_* 明文内联进前端 bundle，公开站点可直接读取，等同密钥泄露。
     switch (provider) {
         case 'deepseek':
-            apiKey = overrides?.apiKey || env.VITE_DEEPSEEK_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_DEEPSEEK_ENDPOINT, 'https://api.deepseek.com/chat/completions');
             model = overrides?.model || env.VITE_DEEPSEEK_MODEL || 'deepseek-chat';
             break;
         case 'gemini':
-            apiKey = overrides?.apiKey || env.VITE_GEMINI_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_GEMINI_ENDPOINT, 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
             model = overrides?.model || env.VITE_GEMINI_MODEL || 'gemini-1.5-flash';
             break;
         case 'qwen':
-            apiKey = overrides?.apiKey || env.VITE_ALI_API_KEY || env.VITE_QWEN_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_ALI_ENDPOINT || env.VITE_QWEN_ENDPOINT, 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions');
             model = overrides?.model || env.VITE_ALI_MODEL || env.VITE_QWEN_MODEL || 'qwen-plus';
             break;
         case 'bytedance':
-            apiKey = overrides?.apiKey || env.VITE_DOUBAO_API_KEY || env.VITE_BYTEDANCE_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_DOUBAO_ENDPOINT || env.VITE_BYTEDANCE_ENDPOINT, 'https://ark.cn-beijing.volces.com/api/v3/chat/completions');
             model = overrides?.model || env.VITE_DOUBAO_MODEL || env.VITE_BYTEDANCE_MODEL || 'doubao-pro-4k';
             break;
         case 'depocr':
-            apiKey = overrides?.apiKey || env.VITE_DEPOCR_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             // depocr 允许自定义完整 URL（不自动拼接 /chat/completions）
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_DEPOCR_ENDPOINT, 'https://api.openai.com/v1/chat/completions', true);
             model = overrides?.model || env.VITE_DEPOCR_MODEL || 'DeepSeek-OCR-Free';
             break;
         case 'anythingllm':
-            apiKey = overrides?.apiKey || env.VITE_ANYTHINGLLM_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_ANYTHINGLLM_ENDPOINT, 'https://ycoffice.tail36f59d.ts.net/api/v1/openai/chat/completions');
             model = overrides?.model || env.VITE_ANYTHINGLLM_MODEL || 'inf_work';
             break;
         default: // openai
-            apiKey = overrides?.apiKey || env.VITE_OPENAI_API_KEY || '';
+            apiKey = overrides?.apiKey || '';
             endpoint = normalizeEndpoint(overrides?.endpoint || env.VITE_OPENAI_ENDPOINT, 'https://api.openai.com/v1/chat/completions');
             model = overrides?.model || env.VITE_OPENAI_MODEL || 'gpt-4o';
     }

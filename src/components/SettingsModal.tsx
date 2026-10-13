@@ -141,7 +141,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         type="password"
                                         value={localKeys.qwen}
                                         onChange={(e) => setLocalKeys(prev => ({ ...prev, qwen: e.target.value }))}
-                                        placeholder={import.meta.env.VITE_ALI_API_KEY || import.meta.env.VITE_QWEN_API_KEY ? "已检测到 .env 变量" : "sk-..."}
+                                        placeholder="sk-..."
                                         className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                                     />
                                 </div>
@@ -169,7 +169,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                         type="password"
                                         value={localKeys.bytedance}
                                         onChange={(e) => setLocalKeys(prev => ({ ...prev, bytedance: e.target.value }))}
-                                        placeholder={import.meta.env.VITE_DOUBAO_API_KEY || import.meta.env.VITE_BYTEDANCE_API_KEY ? "已检测到 .env 变量" : "API Key..."}
+                                        placeholder="API Key..."
                                         className="w-full px-3 py-2 border border-slate-200 rounded text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                                     />
                                 </div>

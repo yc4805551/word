@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useEditorContext } from './EditorProvider';
 import { Sparkles, Check, X, Loader2, Bot, Send, Lightbulb, Download, Trash2 } from 'lucide-react';
 
@@ -130,6 +130,15 @@ export default function AIAssistantSidebar() {
     const [associativeError, setAssociativeError] = useState<string | null>(null);
     const [associativeNotice, setAssociativeNotice] = useState<string | null>(null);
     const [chatInput, setChatInput] = useState('');
+    const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+    // 输入框随内容自动增高（38px ~ 160px），超出后内部滚动
+    const autoResizeChatInput = () => {
+        const el = chatInputRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    };
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [chatBackend, setChatBackend] = useState<'wps' | 'gemini'>('wps');
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
@@ -392,6 +401,7 @@ export default function AIAssistantSidebar() {
         if (!chatInput.trim()) return;
         const text = chatInput;
         setChatInput('');
+        if (chatInputRef.current) chatInputRef.current.style.height = 'auto';
         await sendChatMessage(text);
     };
 
@@ -721,21 +731,27 @@ export default function AIAssistantSidebar() {
                             )}
                         </div>
 
-                        <div className="p-2 border-t border-slate-200 bg-slate-50 flex gap-2">
-                            <input 
-                                type="text"
+                        <div className="p-2 border-t border-slate-200 bg-slate-50 flex gap-2 items-end">
+                            <textarea
+                                ref={chatInputRef}
+                                rows={1}
                                 value={chatInput}
-                                onChange={e => setChatInput(e.target.value)}
-                                placeholder="输入要求，例如：续写..."
-                                className="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                onChange={e => {
+                                    setChatInput(e.target.value);
+                                    autoResizeChatInput();
+                                }}
+                                placeholder="输入要求，例如：续写...（Enter 发送，Shift+Enter 换行）"
+                                className="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-1.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y min-h-[38px] max-h-[160px] leading-snug"
+                                style={{ height: 38 }}
                                 disabled={isChatLoading}
                                 onKeyDown={e => {
-                                    if (e.key === 'Enter' && chatInput.trim()) {
-                                        handleSendMessage();
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        if (chatInput.trim()) handleSendMessage();
                                     }
                                 }}
                             />
-                            <button 
+                            <button
                                 onClick={handleSendMessage}
                                 disabled={!chatInput.trim() || isChatLoading}
                                 className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shrink-0 disabled:opacity-50"
